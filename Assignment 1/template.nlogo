@@ -20,7 +20,7 @@
 ;
 ; 1) total_dirty: this variable represents the amount of dirty cells in the environment.
 ; 2) time: the total simulation time.
-globals [total_dirty time]
+globals [total_dirty time garbage_list]
 
 
 ; --- Agents ---
@@ -42,6 +42,7 @@ vacuums-own [beliefs desire intention]
 ; --- Setup ---
 to setup
   set time 0
+  clear-all
   setup-patches
   setup-vacuums
   setup-ticks
@@ -63,18 +64,33 @@ end
 ; --- Setup patches ---
 to setup-patches
   ; In this method you may create the environment (patches), using colors to define dirty and cleaned cells.
+  set garbage_list []
+  ask patches [ set pcolor white - 1 ]
+
+  set total_dirty world-height * world-width * dirt_pct / 100
+  set total_dirty round total_dirty
+  ask n-of total_dirty patches [
+    set pcolor brown
+    set garbage_list lput (list pxcor pycor) garbage_list
+  ]
 end
 
 
 ; --- Setup vacuums ---
 to setup-vacuums
   ; In this method you may create the vacuum cleaner agents (in this case, there is only 1 vacuum cleaner agent).
+  create-vacuums 1
+  ask vacuum 0 [
+    set color 105
+    set beliefs garbage_list
+  ]
 end
 
 
 ; --- Setup ticks ---
 to setup-ticks
   ; In this method you may start the tick counter.
+  reset-ticks
 end
 
 
@@ -83,10 +99,16 @@ to update-desires
   ; You should update your agent's desires here.
   ; At the beginning your agent should have the desire to clean all the dirt.
   ; If it realises that there is no more dirt, its desire should change to something like 'stop and turn off'.
+  ifelse count patches with [ pcolor = brown ] = 0
+  [
+    ask vacuum 0 [ set desire "Stop and turn off." ]
+    stop
+  ]
+  [ ask vacuum 0 [ set desire "Clean all the dirt." ] ]
 end
 
 
-; --- Update desires ---
+; --- Update beliefs ---
 to update-beliefs
  ; You should update your agent's beliefs here.
  ; At the beginning your agent will receive global information about where all the dirty locations are.
@@ -99,6 +121,7 @@ end
 to update-intentions
   ; You should update your agent's intentions here.
   ; The agent's intentions should be dependent on its beliefs and desires.
+   show first [beliefs] of vacuum 0
 end
 
 
@@ -143,7 +166,7 @@ dirt_pct
 dirt_pct
 0
 100
-0
+8
 1
 1
 NIL
