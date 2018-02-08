@@ -20,7 +20,12 @@
 ;
 ; 1) total_dirty: this variable represents the amount of dirty cells in the environment.
 ; 2) time: the total simulation time.
-globals [total_dirty time garbage_list]
+globals [
+  total_dirty
+  time
+  garbage_list
+  first_trash_position
+]
 
 
 ; --- Agents ---
@@ -36,7 +41,13 @@ breed [vacuums vacuum]
 ; 1) beliefs: the agent's belief base about locations that contain dirt
 ; 2) desire: the agent's current desire
 ; 3) intention: the agent's current intention
-vacuums-own [beliefs desire intention]
+vacuums-own [
+  beliefs
+  desire
+  intention
+  clean_x
+  clean_y
+]
 
 
 ; --- Setup ---
@@ -58,6 +69,9 @@ to go
   update-intentions
   execute-actions
   tick
+  set time ticks
+
+  if [desire] of vacuum 0 = "Stop and turn off." [stop]
 end
 
 
@@ -69,7 +83,8 @@ to setup-patches
 
   set total_dirty world-height * world-width * dirt_pct / 100
   set total_dirty round total_dirty
-  ask n-of total_dirty patches [
+  ask n-of total_dirty patches
+  [
     set pcolor brown
     set garbage_list lput (list pxcor pycor) garbage_list
   ]
@@ -80,7 +95,8 @@ end
 to setup-vacuums
   ; In this method you may create the vacuum cleaner agents (in this case, there is only 1 vacuum cleaner agent).
   create-vacuums 1
-  ask vacuum 0 [
+  ask vacuum 0
+  [
     set color 105
     set beliefs garbage_list
   ]
@@ -114,6 +130,19 @@ to update-beliefs
  ; At the beginning your agent will receive global information about where all the dirty locations are.
  ; This belief set needs to be updated frequently according to the cleaning actions: if you clean dirt, you do not believe anymore there is a dirt at that location.
  ; In Assignment 1.3, your agent also needs to know where is the garbage can.
+ ask vacuum 0
+ [
+   ifelse length beliefs != 0
+   [
+     let first_pos first [beliefs] of vacuum 0
+
+     if [pcolor] of patch (item 0 first_pos) (item 1 first_pos) != brown
+     [ set beliefs remove-item 0 beliefs ]
+   ]
+   [ set beliefs [] ]
+ ]
+
+ set total_dirty count patches with [ pcolor = brown ]
 end
 
 
@@ -121,13 +150,35 @@ end
 to update-intentions
   ; You should update your agent's intentions here.
   ; The agent's intentions should be dependent on its beliefs and desires.
-   show first [beliefs] of vacuum 0
+  ask vacuum 0
+  [
+    ifelse desire = "Clean all the dirt." and total_dirty != 0
+    [
+      set first_trash_position first beliefs
+      set intention word "Clean position " first_trash_position
+    ]
+    [ set intention "No intention" ]
+  ]
 end
 
 
 ; --- Execute actions ---
 to execute-actions
   ; Here you should put the code related to the actions performed by your agent: moving and cleaning (and in Assignment 1.3, throwing away dirt).
+  ask vacuum 0
+  [
+    if member? "Clean" intention
+    [
+      set clean_x item 0 first_trash_position
+      set clean_y item 1 first_trash_position
+
+      if (round xcor = clean_x) and (round ycor = clean_y)
+      [ ask patch clean_x clean_y [ set pcolor white - 1 ] ]
+
+      facexy clean_x clean_y
+      forward 0.5
+    ]
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -166,7 +217,7 @@ dirt_pct
 dirt_pct
 0
 100
-8
+1
 1
 1
 NIL
