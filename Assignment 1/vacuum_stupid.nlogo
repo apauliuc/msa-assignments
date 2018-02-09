@@ -20,7 +20,14 @@
 ;
 ; 1) total_dirty: this variable represents the amount of dirty cells in the environment.
 ; 2) time: the total simulation time.
-globals [total_dirty time]
+globals [
+  total_dirty
+  time
+  garbage_list
+  first_trash_position
+  color_garbage
+  color_clean
+]
 
 
 ; --- Agents ---
@@ -31,17 +38,24 @@ breed [vacuums vacuum]
 
 
 ; --- Local variables ---
-; The following local variables are given. (Note: you might need additional local variables (e.g., to keep track of how many pieces of dirt are in the bag in Assignment 3.3). You could represent this as another belief, but it this is inconvenient you may also use another name for it.)
+; The following local variables are given. (Note: you might need additional local variables (e.g., to keep track of how many pieces of dirt are in the bag in Assignment 3.3). You could represent this as another belief, but if this is inconvenient you may also use another name for it.)
 ;
 ; 1) beliefs: the agent's belief base about locations that contain dirt
 ; 2) desire: the agent's current desire
 ; 3) intention: the agent's current intention
-vacuums-own [beliefs desire intention]
+vacuums-own [
+  beliefs
+  desire
+  intention
+  clean_x
+  clean_y
+]
 
 
 ; --- Setup ---
 to setup
   set time 0
+  clear-all
   setup-patches
   setup-vacuums
   setup-ticks
@@ -57,24 +71,50 @@ to go
   update-intentions
   execute-actions
   tick
+
+  set time ticks
+
+  if [desire] of vacuum 0 = "Stop and turn off." [stop]
 end
 
 
 ; --- Setup patches ---
 to setup-patches
   ; In this method you may create the environment (patches), using colors to define dirty and cleaned cells.
+  set color_clean white - 1
+  set color_garbage brown
+  set garbage_list []
+
+  ask patches [ set pcolor color_clean ]
+
+  set total_dirty world-height * world-width * dirt_pct / 100
+  set total_dirty round total_dirty
+  ask n-of total_dirty patches
+  [
+    set pcolor color_garbage
+    set garbage_list lput (list pxcor pycor) garbage_list
+  ]
 end
 
 
 ; --- Setup vacuums ---
 to setup-vacuums
   ; In this method you may create the vacuum cleaner agents (in this case, there is only 1 vacuum cleaner agent).
+  create-vacuums 1
+  ask vacuum 0
+  [
+    set color 105
+    set beliefs garbage_list
+    set clean_x -5
+    set clean_y -5
+  ]
 end
 
 
 ; --- Setup ticks ---
 to setup-ticks
   ; In this method you may start the tick counter.
+  reset-ticks
 end
 
 
@@ -83,15 +123,34 @@ to update-desires
   ; You should update your agent's desires here.
   ; At the beginning your agent should have the desire to clean all the dirt.
   ; If it realises that there is no more dirt, its desire should change to something like 'stop and turn off'.
+  ifelse count patches with [ pcolor = color_garbage ] = 0
+  [
+    ask vacuum 0 [ set desire "Stop and turn off." ]
+    stop
+  ]
+  [ ask vacuum 0 [ set desire "Clean the dirt." ] ]
 end
 
 
-; --- Update desires ---
+; --- Update beliefs ---
 to update-beliefs
  ; You should update your agent's beliefs here.
  ; At the beginning your agent will receive global information about where all the dirty locations are.
  ; This belief set needs to be updated frequently according to the cleaning actions: if you clean dirt, you do not believe anymore there is a dirt at that location.
  ; In Assignment 1.3, your agent also needs to know where is the garbage can.
+ ask vacuum 0
+ [
+   ifelse length beliefs != 0
+   [
+     let first_pos first [beliefs] of vacuum 0
+
+     if [pcolor] of patch (item 0 first_pos) (item 1 first_pos) != color_garbage
+     [ set beliefs remove-item 0 beliefs ]
+   ]
+   [ set beliefs [] ]
+ ]
+
+ set total_dirty count patches with [ pcolor = color_garbage ]
 end
 
 
@@ -99,12 +158,41 @@ end
 to update-intentions
   ; You should update your agent's intentions here.
   ; The agent's intentions should be dependent on its beliefs and desires.
+  ask vacuum 0
+  [
+    ifelse desire = "Clean the dirt." and beliefs != []
+    [
+      set first_trash_position first beliefs
+      set clean_x item 0 first_trash_position
+      set clean_y item 1 first_trash_position
+
+      ifelse (round xcor = clean_x) and (round ycor = clean_y)
+      [ set intention word "Clean position " first_trash_position ]
+      [ set intention word "Move to position " first_trash_position ]
+    ]
+    [ set intention "No intention" ]
+  ]
 end
 
 
 ; --- Execute actions ---
 to execute-actions
   ; Here you should put the code related to the actions performed by your agent: moving and cleaning (and in Assignment 1.3, throwing away dirt).
+  ask vacuum 0
+  [
+    ifelse member? "Move to position" intention
+    [
+      facexy clean_x clean_y
+      forward 1
+    ]
+    [
+      if (member? "Clean position" intention) and ((round xcor = clean_x) and (round ycor = clean_y))
+      [
+        ask patch clean_x clean_y [ set pcolor color_clean ]
+        update-beliefs
+      ]
+    ]
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -143,7 +231,7 @@ dirt_pct
 dirt_pct
 0
 100
-0
+2
 1
 1
 NIL
@@ -646,7 +734,7 @@ Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 
 @#$#@#$#@
-NetLogo 5.3
+NetLogo 5.3.1
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
