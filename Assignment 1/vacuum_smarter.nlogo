@@ -13,6 +13,7 @@
 ;
 ; 1) dirt_pct: this variable represents the percentage of dirty cells in the environment.
 ; For instance, if dirt_pct = 5, initially 5% of all the patches should contain dirt (and should be cleaned by your smart vacuum cleaner).
+; 2) max_capacity_bag: represents the maximum capacity of garbage the vacuum can collect.
 
 
 ; --- Global variables ---
@@ -38,7 +39,9 @@ globals [
 ; The following types of agent are given.
 ;
 ; 1) vacuums: vacuum cleaner agents.
+; 2) containers: garbage can agents.
 breed [vacuums vacuum]
+breed [containers container]
 
 
 ; --- Local variables ---
@@ -49,12 +52,14 @@ breed [vacuums vacuum]
 ; 3) intention: the agent's current intention.
 ; 4) clean_x: the x coordinate of the garbage to be cleaned next.
 ; 5) clean_y: the y coordinate of the garbage to be cleaned next.
+; 6) garbage_collected: number of garbage pieces collected in vacuum bag.
 vacuums-own [
   beliefs
   desire
   intention
   clean_x
   clean_y
+  garbage_collected
 ]
 
 
@@ -64,6 +69,7 @@ to setup
   clear-all
   setup-patches
   setup-vacuums
+  setup-garbage-cans
   setup-ticks
 end
 
@@ -102,6 +108,18 @@ to setup-patches
   ]
 end
 
+; --- Setup garbage cans ---
+to setup-garbage-cans
+  ; Create the garbage can collector, and randomly position it.
+  create-containers 1
+  ask container 1
+  [
+    set color green
+    set shape "box"
+    setxy round random-xcor round random-ycor
+  ]
+end
+
 
 ; --- Setup vacuums ---
 to setup-vacuums
@@ -113,6 +131,7 @@ to setup-vacuums
     set beliefs garbage_list
     set clean_x -5
     set clean_y -5
+    set garbage_collected 0
   ]
 end
 
@@ -160,18 +179,29 @@ end
 ; --- Update intentions ---
 to update-intentions
   ; Update agent's intentions.
-  ; The agent will move to the next garbage's position and clean it.
+  ; The agent has the intention to go to the garbage can and empty the bag if the bag is full.
+  ; Otherwise, he will move to the next garbage's position and clean it.
   ask vacuum 0
   [
     ifelse desire = "Clean the dirt." and beliefs != []
     [
-      set first_trash_position first beliefs
-      set clean_x item 0 first_trash_position
-      set clean_y item 1 first_trash_position
+      ifelse garbage_collected = max_capacity_bag
+      [
+        ifelse (round xcor = [xcor] of container 1) and (round ycor = [ycor] of container 1)
+        [ set intention "Empty the bag." ]
+        [ set intention "Go to the garbage can." ]
+      ]
+      [
+        set first_trash_position first beliefs
+        set clean_x item 0 first_trash_position
+        set clean_y item 1 first_trash_position
 
-      ifelse (round xcor = clean_x) and (round ycor = clean_y)
-      [ set intention word "Clean position " first_trash_position ]
-      [ set intention word "Move to position " word first_trash_position " and clean" ]
+        ifelse (round xcor = clean_x) and (round ycor = clean_y)
+        [ set intention word "Clean position " first_trash_position ]
+        [ set intention word "Move to position " word first_trash_position " and clean" ]
+      ]
+
+
     ]
     [ set intention "No intention" ]
   ]
@@ -181,20 +211,36 @@ end
 ; --- Execute actions ---
 to execute-actions
   ; The actions of the agent depend on its intention. He can:
+  ;  - move to the garbage can.
+  ;  - empty the garbage bag by throwing away the dirt.
   ;  - go to one of the garbage's positions.
   ;  - clean the garbage on current position.
   ask vacuum 0
   [
-    ifelse member? "Move to position" intention
+    ifelse member? "Go to the garbage can" intention
     [
-      facexy clean_x clean_y
+      facexy ([xcor] of container 1) ([ycor] of container 1)
       forward 1
     ]
     [
-      if (member? "Clean position" intention) and ((round xcor = clean_x) and (round ycor = clean_y))
+      ifelse member? "Empty the bag" intention
       [
-        ask patch clean_x clean_y [ set pcolor color_clean ]
-        update-beliefs
+        set garbage_collected 0
+      ]
+      [
+        ifelse member? "Move to position" intention
+        [
+          facexy clean_x clean_y
+          forward 1
+        ]
+        [
+          if (member? "Clean position" intention) and ((round xcor = clean_x) and (round ycor = clean_y))
+          [
+            ask patch clean_x clean_y [ set pcolor color_clean ]
+            set garbage_collected garbage_collected + 1
+            update-beliefs
+          ]
+        ]
       ]
     ]
   ]
@@ -236,7 +282,7 @@ dirt_pct
 dirt_pct
 0
 100
-2
+3
 1
 1
 NIL
@@ -278,9 +324,9 @@ NIL
 
 MONITOR
 12
-115
+148
 778
-160
+193
 Number of dirty cells left.
 total_dirty
 17
@@ -289,9 +335,9 @@ total_dirty
 
 BUTTON
 11
-82
-777
 115
+777
+148
 NIL
 setup
 NIL
@@ -306,9 +352,9 @@ NIL
 
 MONITOR
 12
-160
+193
 778
-205
+238
 The agent's current desire.
 [desire] of vacuum 0
 17
@@ -317,9 +363,9 @@ The agent's current desire.
 
 MONITOR
 12
-205
+238
 778
-250
+283
 The agent's current belief base.
 [beliefs] of vacuum 0
 1000
@@ -328,9 +374,9 @@ The agent's current belief base.
 
 MONITOR
 12
-295
+328
 778
-340
+373
 Total simulation time.
 time
 17
@@ -339,14 +385,29 @@ time
 
 MONITOR
 12
-250
+283
 778
-295
+328
 The agent's current intention.
 [intention] of vacuum 0
 17
 1
 11
+
+SLIDER
+11
+82
+777
+115
+max_capacity_bag
+max_capacity_bag
+0
+50
+5
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
