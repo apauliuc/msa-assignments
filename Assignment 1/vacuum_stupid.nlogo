@@ -145,9 +145,7 @@ to update-beliefs
  [
    ifelse length beliefs != 0
    [
-     let first_pos first [beliefs] of vacuum 0
-
-     if [pcolor] of patch (item 0 first_pos) (item 1 first_pos) != color_garbage
+     if [pcolor] of patch (item 0 first beliefs) (item 1 first beliefs) != color_garbage
      [ set beliefs remove-item 0 beliefs ]
    ]
    [ set beliefs [] ]

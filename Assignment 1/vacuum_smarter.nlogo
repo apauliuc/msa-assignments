@@ -22,14 +22,14 @@
 ; 1) total_dirty: this variable represents the amount of dirty cells in the environment.
 ; 2) time: the total simulation time.
 ; 3) garbage_list: list of garbage positions (used at initialisation of agent's beliefs).
-; 4) first_trash_position: position (x, y) of the garbage to be cleaned next.
+; 4) closest_trash_position: position (x, y) of the garbage to be cleaned next.
 ; 5) color_garbage: global color for garbage positions.
 ; 6) color_clean: global color for clean positions.
 globals [
   total_dirty
   time
   garbage_list
-  first_trash_position
+  closest_trash_position
   color_garbage
   color_clean
 ]
@@ -129,8 +129,8 @@ to setup-vacuums
   [
     set color 105
     set beliefs garbage_list
-    set clean_x -5
-    set clean_y -5
+    set clean_x 0
+    set clean_y 0
     set garbage_collected 0
   ]
 end
@@ -164,9 +164,9 @@ to update-beliefs
  [
    ifelse length beliefs != 0
    [
-     let first_pos first [beliefs] of vacuum 0
+     set beliefs sort-by [ distancexy (item 0 ?1) (item 1 ?1) < distancexy (item 0 ?2) (item 1 ?2) ] beliefs
 
-     if [pcolor] of patch (item 0 first_pos) (item 1 first_pos) != color_garbage
+     if [pcolor] of patch (item 0 first beliefs) (item 1 first beliefs) != color_garbage
      [ set beliefs remove-item 0 beliefs ]
    ]
    [ set beliefs [] ]
@@ -192,16 +192,14 @@ to update-intentions
         [ set intention "Go to the garbage can." ]
       ]
       [
-        set first_trash_position first beliefs
-        set clean_x item 0 first_trash_position
-        set clean_y item 1 first_trash_position
+        set closest_trash_position first beliefs
+        set clean_x item 0 closest_trash_position
+        set clean_y item 1 closest_trash_position
 
         ifelse (round xcor = clean_x) and (round ycor = clean_y)
-        [ set intention word "Clean position " first_trash_position ]
-        [ set intention word "Move to position " word first_trash_position " and clean" ]
+        [ set intention word "Clean position " closest_trash_position ]
+        [ set intention word "Move to position " word closest_trash_position " and clean" ]
       ]
-
-
     ]
     [ set intention "No intention" ]
   ]
@@ -282,7 +280,7 @@ dirt_pct
 dirt_pct
 0
 100
-3
+1
 1
 1
 NIL
@@ -403,7 +401,7 @@ max_capacity_bag
 max_capacity_bag
 0
 50
-5
+9
 1
 1
 NIL
