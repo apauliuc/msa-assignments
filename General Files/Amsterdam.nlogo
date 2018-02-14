@@ -512,7 +512,7 @@ to add-buses
       set ycor 21
       set bus_passengers []
       set bus_id who
-      set next_stop false
+      set next_stop -1
       set current_stop 3
       set previous_stop -1
       init-buses
@@ -640,7 +640,7 @@ to-report is-adjacent? [b_id b_s_id]
       ]
     ]
     [
-      if not is-boolean? get-distance b_s_id bsh [
+      if (get-distance b_s_id bsh) != -1[
         set return true
       ]
     ]
@@ -691,7 +691,7 @@ to pick-up-passenger [passenger_id]
           ]
         ]
         [
-          show (word "WARNING: pick-up-passenger             :" "it is impossible to pick up this passenger:" passenger_id)
+          show (word "WARNING: pick-up-passenger             :" "It is impossible to pick up such a passenger:" passenger_id)
         ]
       ]
     ]
@@ -742,7 +742,7 @@ to drop-off-passenger [p_id]
         set passengers replace-item pos_passenger passengers passenger
       ]
       [
-        show (word "WARNING: drop-off-passenger            :" "it is impossible to drop off this passenger: " p_id)
+        show (word "WARNING: drop-off-passenger            :" "It is impossible to drop off such a passenger: " p_id)
       ]
     ]
   ]
@@ -751,7 +751,7 @@ end
 to-report get-passengers-at-stop [b_s_id]
   let information []
   ifelse is-number? b_s_id = false or count bus_stops with [who = b_s_id] <= 0 [
-     show (word "WARNING: get-passengers-waiting-at-stop:" " there is no bus-stop " b_s_id)]
+     show (word "WARNING: get-passengers-waiting-at-stop:" " there is not bus-stop " b_s_id)]
   [
     ask bus_stop b_s_id [
       foreach passengers_waiting [
@@ -788,8 +788,8 @@ GRAPHICS-WINDOW
 40
 0
 30
-1
-1
+0
+0
 1
 ticks
 30.0
@@ -872,8 +872,30 @@ MONITOR
 238
 1336
 283
-Total Amount of Money Spent
+Buses' Expenses
 expenses
+2
+1
+11
+
+MONITOR
+1097
+194
+1336
+239
+Passengers' Average Travelling Time
+average_travelling_time
+2
+1
+11
+
+MONITOR
+1097
+504
+1336
+549
+Number of Passengers Waiting for a Bus
+amount_passengers_waiting
 2
 1
 11
@@ -883,7 +905,7 @@ MONITOR
 282
 1336
 327
-Total Number of Messages Sent
+Number of Messages Sent by the Buses
 number_of_messages
 2
 1
@@ -894,9 +916,9 @@ PLOT
 848
 335
 1066
-Average Travel Time
+Average Travelling Time
 Ticks
-Time
+Average Travelling Time
 0.0
 10.0
 0.0
@@ -905,7 +927,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot final_average_travelling_time"
+"default" 1.0 0 -16777216 true "" "plot average_travelling_time"
 "pen-1" 1.0 0 -7500403 true "" ""
 
 PLOT
@@ -913,9 +935,9 @@ PLOT
 848
 649
 1066
-Total Amount of Money Spent
+Buses Expenses
 Ticks
-Euros
+Expenses
 0.0
 10.0
 0.0
@@ -931,9 +953,9 @@ PLOT
 848
 962
 1066
-Total Number of Messages Sent
+Messages Sent by the Buses
 Ticks
-#Messages
+Number of Messages
 0.0
 10.0
 0.0
@@ -944,14 +966,43 @@ false
 PENS
 "default" 1.0 0 -16777216 true "" "plot number_of_messages"
 
+PLOT
+1096
+327
+1336
+477
+Number of Passengers Waiting for a Bus
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot amount_passengers_waiting"
+
 MONITOR
-1098
-196
-1338
-241
-Average Travel Time
+1097
+549
+1336
+594
+NIL
+average_travelling_time_remaining
+17
+1
+11
+
+MONITOR
+1097
+627
+1340
+672
+NIL
 final_average_travelling_time
-2
+17
 1
 11
 

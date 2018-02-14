@@ -12,7 +12,7 @@ buses-own [
 
   ; New local variables for students.
   ; You can create any new local variable you want. Just declare them here.
-
+  number_passengers
 ]
  
 globals [graph]
@@ -43,6 +43,6 @@ to execute-actions
   ]
 end
 
-;to check-
-;  
-;end
+to get-route-to-bus-stop [b_s_id]
+  
+end
