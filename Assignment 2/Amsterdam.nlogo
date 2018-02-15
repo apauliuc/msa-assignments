@@ -203,7 +203,13 @@ to update-routes
       set ycors lput ycor ycors
     ]
     set route_size sqrt (((item 0 xcors - item 1 xcors) ^ 2) + ((item 0 ycors - item 1 ycors) ^ 2))
-    hide-link
+;    hide-link
+
+    ;own code
+    show-link
+    set thickness 0.15
+    set color 14
+    ;
   ]
 end
 

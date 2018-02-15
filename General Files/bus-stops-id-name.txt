@@ -1,24 +1,24 @@
-0 Amstel
-1 Amstelveenseweg
-2 Buikslotermeer
-3 Centraal
-4 Dam
-5 Evertsenstraat
-6 Floradorp
-7 Haarlemmermeerstation
-8 Hasseltweg
-9 Hendrikkade
-10 Leidseplein
-11 Lelylaan
-12 Muiderpoort
-13 Museumplein
-14 RAI
-15 SciencePark
-16 Sloterdijk
-17 Surinameplein
-18 UvA
-19 VU
-20 Waterlooplein
-21 Weesperplein
-22 Wibautstraat
-23 Zuid
+0 Amstel					[14 15 22]
+1 Amstelveenseweg			[7 11 19 23]
+2 Buikslotermeer			[8]
+3 Centraal					[4 9 16 20]
+4 Dam						[3 5 10]
+5 Evertsenstraat			[4 10 16 17]
+6 Floradorp					[8]
+7 Haarlemmermeerstation		[1 13 17]
+8 Hasseltweg				[2 6 9]
+9 Hendrikkade				[3 8 20]
+10 Leidseplein				[4 5 13 17 21]
+11 Lelylaan					[1 16 17]
+12 Muiderpoort				[15 20 22]
+13 Museumplein				[7 10 22 23]
+14 RAI						[0 23]
+15 SciencePark				[0 12 18]
+16 Sloterdijk				[3 5 11]
+17 Surinameplein			[5 7 10 11]
+18 UvA						[15]
+19 VU						[1 23]
+20 Waterlooplein			[3 9 12 21]
+21 Weesperplein				[10 20 22]
+22 Wibautstraat				[0 12 13 21]
+23 Zuid						[1 13 14 19]
