@@ -109,6 +109,16 @@ to execute-actions
       ]
       
       if is-number? current_stop and current_stop != -1 [
+        
+        ;       Drop off passengers at current stop
+        foreach bus_passengers [
+          if not can-transport-one-station current_stop item 1 ? bus_route [
+            show ( word "Dropped passenger" ?)
+            drop-off-passenger item 0 ?
+            set bus_current_capacity length bus_passengers
+          ]
+        ]
+        
         ;       Pick up passengers that travel on the bus route
         let passengers_at_current_stop get-passengers-at-stop current_stop
         if length passengers_at_current_stop != 0 [        
@@ -120,15 +130,7 @@ to execute-actions
             ]
           ]
         ]
-        
-        ;       Drop off passengers at current stop
-        foreach bus_passengers [
-          if not can-transport-one-station current_stop item 1 ? bus_route [
-            show ( word "Dropped passenger" ?)
-            drop-off-passenger item 0 ?
-            set bus_current_capacity length bus_passengers
-          ]
-        ]
+                
       ]
       
       if current_stop = first remaining_bus_route [
