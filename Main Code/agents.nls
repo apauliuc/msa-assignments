@@ -1,8 +1,10 @@
+__includes ["graph_helpers.nls"]
+__includes ["passengers.nls"]
 buses-own [
   ; Static, read-only variables. These values never change. You can read them, but you cannot change them.
   bus_id          ; The ID of a given agent (bus). Each agent has a unique ID.
   bus_type        ; The type of a given agent (bus). 1 means "small", 2 means "medium" and 3 means "large".
-    
+
   ; Dynamic, read-only variables. These values may change over time. You can read them, but you cannot change them.
   inbox           ; List containing all the incoming messages (a given message is a list like this [tick sender message]).
   bus_passengers  ; List containing all the passengers that the agent (bus) is currently carrying (represented as a list like this [passenger_id bus_stop]).
@@ -13,7 +15,7 @@ buses-own [
   ; New local variables for students.
   ; You can create any new local variable you want. Just declare them here.
   predef_bus_routes           ; Hand-crafted list of bus routes.
-  bus-routes-graph            ; Sparse graph of bus routes
+  bus_routes_graph            ; Sparse graph of bus routes
   local_id                    ; Bus id for humans.
   route_id                    ; Route id for humans.
   bus_route                   ; List of stops taht the bus follows forward and backward.
@@ -23,33 +25,45 @@ buses-own [
   br_stop                     ; End point of the bus route.
   path_to_start_route         ; The shortest path from the current bus point to br_start.
   bus_current_capacity        ; How many passengers are currently in the bus.
+  is_master                   ; Flag indicating if the bus has extra rights. (e.g. adding new buses.)
+  messages_to_send
 ]
- 
+
 globals [graph]
 
+; Initialise each bus.
+; Sets:
+;   {number} bus_current_capacity: how many passengers the bus is carrying.
+;   {list} graph: the graph representing the topology of the entire network of bus stops; known to all agents.
+;   {list} predef_bus_routes: the list of predefined bus routes representing the topology of entire network of bus routes; known to all agents.
+;   {number} local_id: bus id for humans.
+;   {number} route_id: route id for humans.
+;   {boolean} is_master: flag indicating bus rights.
+;   {boolean} on_route: flag indicating of bus is on route.
+;   {list} path_to_start_route: list of nodes to the beginning of the bus route.
 to init-buses
-  ; Initialize your agents here.
   set bus_current_capacity 0
-  
-  ; List of predefined bus routes.
-  set predef_bus_routes [[3 16 11 1 19] [6 8 9 3 4 5 17 7 1 19] [2 8 9 20 12 15 18] [18 15 0 14 23 19] [3 4 10 13 23 19] [3 20 21 22 0] [18 15 12 22 13 10 5 16]]
-  
-  ; This list contains the topology of the entire network of bus stops, which is known to all agents. You can use this, for instance, to calculate the shortest path between two bus stops.
   set graph [[22 15 14] [11 19 23 7] [8] [16 4 20 9] [3 5 10] [4 16 10 17] [8] [1 17 13] [2 6 9] [3 8 20] [4 5 17 13 21] [1 16 17] [20 15 22] [7 10 22 23] [0 23] [0 12 18] [3 5 11] [5 7 10 11] [15] [1 23] [3 9 12 21] [10 20 22] [0 12 13 21] [1 13 14 19]]
+  set predef_bus_routes [[3 16 11 1 19] [6 8 9 3 4 5 17 7 1 19] [2 8 9 20 12 15 18] [18 15 0 14 23 19] [3 4 10 13 23 19] [3 20 21 22 0] [18 15 12 22 13 10 5 16]]
 
-  ; This list contains the topology of the entire network of bus routes. 
-  ; The variable 'bus-routes-graph' contains the edge between X and Y only if there is a route that goes from X to Y (if there is not such route, even if there is a road between X and Y, the 'bus-routes-graph' does not contrain it)
-  set bus-routes-graph create-graph-from-bus-routes predef_bus_routes
-  
+  ; The variable 'bus_routes_graph' contains the edge between X and Y
+  ; only if there is a route that goes from X to Y (if there is not such route,
+  ; even if there is a road between X and Y, the 'bus_routes_graph' does not contrain it)
+  set bus_routes_graph create-graph-from-bus-routes predef_bus_routes
+
   ; Select bus route based on the bus id.
   set local_id (bus_id - length graph)
   set route_id (local_id mod (length predef_bus_routes))
- 
+
+  ifelse local_id = 0
+    [ set is_master true ]
+    [ set is_master false ]
+
   setup-bus-route false
-  
-  ifelse current_stop = br_start [ set on_route true ] [ set on_route false ]
+  ifelse current_stop = br_start
+    [ set on_route true ]
+    [ set on_route false ]
   set path_to_start_route []
-  
 end
 
 ; Setup the bus route to be the forward pass or the backward pass.
@@ -62,8 +76,8 @@ end
 ;   {remaining_bus_route}: the remaining stops, initialised to the full bus route.
 to setup-bus-route [reversed]
   ifelse reversed
-  [ set bus_route reverse bus_route ]
-  [ set bus_route item route_id predef_bus_routes ]
+    [ set bus_route reverse bus_route ]
+    [ set bus_route item route_id predef_bus_routes ]
   set br_start first bus_route
   set br_stop last bus_route
   set remaining_bus_route bus_route
@@ -72,12 +86,16 @@ end
 
 ; Ran at every tick by every bus. Add decision making strategies for your agents here. You are allowed to use the global variable 'ticks'.
 to execute-actions
-  
+
+  if is_master [
+    manage-fleet
+  ]
+
   ifelse not on_route
   [
     find-path-to-start
     travel-to first path_to_start_route
-    
+
     if current_stop = br_start [
       register-reached-start
     ]
@@ -86,13 +104,13 @@ to execute-actions
     if has-passengers [
       if current_stop = br_stop [
         setup-bus-route true
-      ] 
+      ]
       if at-stop [
         drop-off
         pick-up
         remove-stop-from-route
       ]
-      
+
       travel-to first remaining_bus_route
     ]
   ]
@@ -114,7 +132,7 @@ to find-path-to-start
   if path_to_start_route = [] [
     set path_to_start_route (get-shortest-path current_stop first remaining_bus_route)
   ]
-  
+
   if current_stop = first path_to_start_route [
     set path_to_start_route remove-item 0 path_to_start_route
   ]
@@ -167,97 +185,19 @@ to remove-stop-from-route
   set remaining_bus_route remove-item 0 remaining_bus_route
 end
 
-to-report count-passengers-on-route [route]
-  let counter 0
-  foreach route [
-    let current-station ?
-    let stop_pass_list filter [can-transport-one-station current-station (item 1 ?) route] get-passengers-at-stop current-station
-    set counter counter + length stop_pass_list
-  ]
-  report counter
-end
+; Manage the adding of the buses. Initialise a bus for every route at first and then as needed.
 
-
-to-report can-transport-one-station [passnger-position passenger-destination bus-route ]
-  ifelse length bus-route > 1 and passnger-position != passenger-destination  [
-    let next-station item 0 (get-shortest-path passnger-position passenger-destination)
-    let index 1
-    while [index < (length bus-route)]
+to manage-fleet
+  ifelse ticks = 2
+  [
+    let i 1
+    while i < length predef_bus_routes
     [
-      if item (index - 1) bus-route = passnger-position and (item index bus-route) = next-station [
-        report true
-      ]
-      set index (index + 1)
+      add-bus 1
+      set i i + 1
     ]
-    report false
   ]
   [
-    show "Bus route has only one element!"
-    report false
-  ]
-  
-end
 
-to-report create-graph-from-bus-routes [bus-routes]
-  let new-graph [[] [] [] [] [] [] [] [] [] [] [] [] [] [] [] [] [] [] [] [] [] [] [] []]
-  foreach bus-routes [
-    let index 1
-    let route ?
-    while [index < (length route)]
-    [
-      let x item index route
-      let y item (index - 1) route
-      
-       set new-graph (replace-item x new-graph (lput y (item x new-graph)))
-       set new-graph (replace-item y new-graph (lput x (item y new-graph)))
-      
-      set index (index + 1)
-    ]
   ]
-  
-  foreach new-graph [
-    set ? remove-duplicates ?
-  ]
-  report new-graph
-end
-
-
-
-to-report get-shortest-path [source target]
-  let Q [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23]
-  let dist n-values 24 [1000000000000]
-  let prev n-values 24 [-1000]
-  
-  set dist (replace-item source dist 0)
-  
-  while [length Q != 0]
-  [
-    let u 0
-    let min_val 1000000000000
-    foreach Q [
-      if item ? dist < min_val [
-        set min_val item ? dist
-        set u ?
-      ]
-    ]
- 
-    set Q remove u Q
-    foreach (item u bus-routes-graph) [
-      let alt (item u dist + get-distance u ?)
-      if alt < item ? dist [
-        set dist (replace-item ? dist alt)
-        set prev (replace-item ? prev u)
-      ]
-    ]
-  ]
-  
-  let S []
-  let u target
-  while [item u prev >= 0]
-  [
-    set S fput u S
-    set u (item u prev)
-  ]
-;  set S fput u S   ;not needed to put the source node in path
-  report S
 end

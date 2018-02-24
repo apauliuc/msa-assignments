@@ -1,0 +1,39 @@
+; Count the remaining passengers on the specified route.
+; Params:
+;   {list} route: the bus route.
+; Reports:
+;   {number} counter: number of passengers in route.
+to-report count-passengers-on-route [route]
+  let counter 0
+  foreach route [
+    let current_station ?
+    let stop_pass_list filter [can-transport-one-station current_station (item 1 ?) route] get-passengers-at-stop current_station
+    set counter counter + length stop_pass_list
+  ]
+  report counter
+end
+
+; This functions returns wheather a bus can transport a passenger at least on station.
+; Params:
+;   {number} passenger_position: current bus stop the passenger is in.
+;   {number} passenger_destination: the bus stop the passenger wants to go to.
+;   {list} bus_route: list of bus stops the bus is scheduled to go through.
+; Reports:
+;   {boolean} true, if the passenger can be transported by the bus for at least one station, false otherwise.
+to-report can-transport-one-station [passenger_position passenger_destination bus_route ]
+  ifelse length bus_route > 1 and passenger_position != passenger_destination  [
+    let next-station item 0 (get-shortest-path passenger_position passenger_destination)
+    let index 1
+    while [index < (length bus_route)]
+    [
+      if item (index - 1) bus_route = passenger_position and (item index bus_route) = next-station [
+        report true
+      ]
+      set index (index + 1)
+    ]
+    report false
+  ]
+  [
+    report false
+  ]
+end
