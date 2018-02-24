@@ -22,14 +22,14 @@ buses-own [
   bus_current_capacity
 ]
  
-globals [graph bus-routes-graph]
+globals [graph bus-routes-graph predef_bus_routes]
 
 to init-buses
   ; Initialize your agents here.  
   set bus_current_capacity 0
   
   ; List of predefined bus routes
-  let predef_bus_routes [[3 16 11 1 19] [6 8 9 3 4 5 17 7 1 19] [2 8 9 20 12 15 18] [18 15 0 14 23 19] [3 4 10 13 23 19] [3 20 21 22 0] [18 15 12 22 13 10 5 16]]
+  set predef_bus_routes [[3 16 11 1 19] [6 8 9 3 4 5 17 7 1 19] [2 8 9 20 12 15 18] [18 15 0 14 23 19] [3 4 10 13 23 19] [3 20 21 22 0] [18 15 12 22 13 10 5 16]]
   
   ; This list contains the topology of the entire network of bus stops, which is known to all agents. You can use this, for instance, to calculate the shortest path between two bus stops.
   set graph [[22 15 14] [11 19 23 7] [8] [16 4 20 9] [3 5 10] [4 16 10 17] [8] [1 17 13] [2 6 9] [3 8 20] [4 5 17 13 21] [1 16 17] [20 15 22] [7 10 22 23] [0 23] [0 12 18] [3 5 11] [5 7 10 11] [15] [1 23] [3 9 12 21] [10 20 22] [0 12 13 21] [1 13 14 19]]
@@ -41,25 +41,25 @@ to init-buses
   ; Initialise bus route
   let max_pass 0
   
-  foreach predef_bus_routes [
+;  foreach predef_bus_routes [
 ;    let x count-passengers-on-route ?
 ;    
 ;    if max_pass < x [
 ;      set max_pass x
 ;      set bus_route ?
 ;    ]
-    add-bus 1
+;    add-bus 1
     
 
-  ]
+;  ]
   
   if bus_route = 0 [
     set bus_route [3 16 11 1 19]
   ]
   
   
-;  let internal_b_id ((bus_id - 24) mod (length predef_bus_routes))
-;  setup-bus-route item internal_b_id predef_bus_routes false
+  let internal_b_id ((bus_id - 24) mod (length predef_bus_routes))
+  setup-bus-route item internal_b_id predef_bus_routes false
   
   setup-bus-route bus_route false
   
@@ -82,7 +82,11 @@ to execute-actions
   ; Add decision making strategies for your agents here.
   ; You are allowed to use the global variable 'ticks'.
   
-;   Check whether we are at the start of the bus route
+  if count buses < length predef_bus_routes [
+    add-bus 1
+  ]
+  
+  ; Check whether we are at the start of the bus route
   if current_stop = br_start and not on_route [
     set on_route true
     set path_to_start_route []
