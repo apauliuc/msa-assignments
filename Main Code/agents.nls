@@ -1,5 +1,4 @@
-__includes ["graph_helpers.nls"]
-__includes ["passengers.nls"]
+__includes [ "graph_helpers.nls" "passengers.nls" "messaging"]
 buses-own [
   ; Static, read-only variables. These values never change. You can read them, but you cannot change them.
   bus_id          ; The ID of a given agent (bus). Each agent has a unique ID.
@@ -20,12 +19,15 @@ buses-own [
   route_id                    ; Route id for humans.
   bus_route                   ; List of stops taht the bus follows forward and backward.
   remaining_bus_route         ; List of remaining stops to the final stop.
-  on_route                    ; Flag for the bus being on its route | if the bus is spawned somewhere outside the route, the flag is false, once it reaches the start it will always be true.
+  on_route                    ; Flag for the bus being on its route; if the bus is spawned somewhere outside the route, the flag is false, once it reaches the start it will always be true.
   br_start                    ; Start point of the bus route.
   br_stop                     ; End point of the bus route.
   path_to_start_route         ; The shortest path from the current bus point to br_start.
   bus_current_capacity        ; How many passengers are currently in the bus.
   is_master                   ; Flag indicating if the bus has extra rights. (e.g. adding new buses.)
+  fleet                       ; List of busses currently on the road, in the form [[bus_id local_id bus_type]]
+  messages_sent               ; Table (key value pairs) of tables in the form (message_type:recipient_id: [send_tick expected_receive_tick])
+  sos_replies                 ; List of reply information for an SOS message in the form ([bus_id capacity])
   messages_to_send
 ]
 
@@ -64,6 +66,9 @@ to init-buses
     [ set on_route true ]
     [ set on_route false ]
   set path_to_start_route []
+
+  ; Create table for storing messages sent
+  set messages_sent table:make
 end
 
 ; Setup the bus route to be the forward pass or the backward pass.
@@ -81,7 +86,6 @@ to setup-bus-route [reversed]
   set br_start first bus_route
   set br_stop last bus_route
   set remaining_bus_route bus_route
-  show (word "New route:" bus_route)
 end
 
 ; Ran at every tick by every bus. Add decision making strategies for your agents here. You are allowed to use the global variable 'ticks'.
@@ -130,7 +134,7 @@ end
 ;   {list} path_to_start_route: initialise the shortest path, or remove a node once reached.
 to find-path-to-start
   if path_to_start_route = [] [
-    set path_to_start_route (get-shortest-path current_stop first remaining_bus_route)
+    set path_to_start_route (get-shortest-path bus_routes_graph current_stop first remaining_bus_route)
   ]
 
   if current_stop = first path_to_start_route [
@@ -186,18 +190,27 @@ to remove-stop-from-route
 end
 
 ; Manage the adding of the buses. Initialise a bus for every route at first and then as needed.
-
 to manage-fleet
   ifelse ticks = 2
   [
     let i 1
-    while i < length predef_bus_routes
+    while [i < length predef_bus_routes]
     [
       add-bus 1
       set i i + 1
     ]
   ]
   [
-
+    ; add new bus if it is the case and queue a message with the bus route.
   ]
+end
+
+; Record the reply to an SOS message by a bus.
+; Sets:
+;   {list} sos_replies
+to handle-sos-reply [message]
+  let sender item 1 message
+  let msg item 2 message
+  let capacity read-from-string substring msg (position " " msg + 1) (length msg)
+  set sos_replies lput [sender capacity] sos_replies
 end

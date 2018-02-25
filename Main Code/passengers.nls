@@ -17,16 +17,16 @@ end
 ; Params:
 ;   {number} passenger_position: current bus stop the passenger is in.
 ;   {number} passenger_destination: the bus stop the passenger wants to go to.
-;   {list} bus_route: list of bus stops the bus is scheduled to go through.
+;   {list} route: list of bus stops the bus is scheduled to go through.
 ; Reports:
 ;   {boolean} true, if the passenger can be transported by the bus for at least one station, false otherwise.
-to-report can-transport-one-station [passenger_position passenger_destination bus_route ]
-  ifelse length bus_route > 1 and passenger_position != passenger_destination  [
-    let next-station item 0 (get-shortest-path passenger_position passenger_destination)
+to-report can-transport-one-station [passenger_position passenger_destination route ]
+  ifelse length route > 1 and passenger_position != passenger_destination  [
+    let next-station item 0 (get-shortest-path bus_routes_graph passenger_position passenger_destination)
     let index 1
-    while [index < (length bus_route)]
+    while [index < (length route)]
     [
-      if item (index - 1) bus_route = passenger_position and (item index bus_route) = next-station [
+      if item (index - 1) route = passenger_position and (item index route) = next-station [
         report true
       ]
       set index (index + 1)

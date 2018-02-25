@@ -1,0 +1,87 @@
+; Send a message to a bus and record the type of sending.
+; Params:
+;   {number} recipient_id: local id to send to.
+;   {string} type: the type of message (e.g. 'sos', 'init')
+;   {string} message: the message to be sent; any time of string
+; Sets:
+;   {table} messages_sent
+to send [recipient_id type message]
+  set recipient_id recipient_id + length graph
+  let wait_time 0
+  ifelse type = "SOS"
+    [ set wait_time 2 ]
+    [ if type = "INIT" [ set wait_time 0] ]
+
+  let messages_of_type table:get messages_sent type
+  table:put messages_of_type recipient_id [ticks ticks + wait_time]
+  table:put messages_sent type messages_of_type
+
+  send-message recipient_id message
+end
+
+; Send message to all busses.
+; Params:
+;   {string} type: the type of message (e.g. 'sos', 'init')
+;   {string} message: the message to be sent; any time of string
+to broadcast [type message]
+  let no_busses count buses - 1
+  let i 0
+  while [i < no_busses]
+  [
+    if i != bus_id [
+      send i type message
+    ]
+  ]
+end
+
+; Process the inbox message by message.
+; Sets:
+to process-inbox
+  let received_messages filter [ticks = item 0 ?] inbox
+
+  foreach received_message [
+    let received_message ?
+    let msg item 2 received_message
+    let type substring msg 0 position " " msg
+
+    if type = "INIT" [
+      ; process init message
+    ]
+    if type = "SOS" [
+      ; process sos message
+    ]
+    if type = "SOS-REPLY" [
+      process-sos-reply type received_message
+    ]
+    if type = "SOS-HELP" [
+      ; process decisive sos message
+    ]
+  ]
+end
+
+; Processes the SOS-REPLY message.
+; Params:
+;   {list} received_message:
+to process-sos-reply [type received_message]
+  let messages_of_type table:get messages_sent type
+  let expected_senders table:keys messages_of_type
+
+  foreach expected_senders [
+    let expected_sender ?
+    let expected_message table:get messages_of_type expected_sender
+    ifelse item 1 expected_message < ticks
+    [
+      table:remove messages_of_type expected_sender
+    ]
+    [
+      if item 1 received_message = expected_sender [
+        ; handle response from bus helper.
+        handle-sos-reply received_message
+        ; remove sent message from bus
+        table:remove messages_of_type expected_sender
+      ]
+    ]
+  ]
+
+  table:put messages_sent type messages_of_type
+end
