@@ -1,4 +1,5 @@
-__includes [ "graph_helpers.nls" "passengers.nls" "messaging"]
+__includes [ "graph_helpers.nls" "passengers.nls" "messaging.nls" "helpers.nls"]
+extensions [table]
 buses-own [
   ; Static, read-only variables. These values never change. You can read them, but you cannot change them.
   bus_id          ; The ID of a given agent (bus). Each agent has a unique ID.
@@ -28,7 +29,9 @@ buses-own [
   fleet                       ; List of busses currently on the road, in the form [[bus_id local_id bus_type]]
   messages_sent               ; Table (key value pairs) of tables in the form (message_type:recipient_id: [send_tick expected_receive_tick])
   sos_replies                 ; List of reply information for an SOS message in the form ([bus_id capacity])
-  messages_to_send
+  messages_to_send            ; Don't know what this is.
+  last_read                   ; Tick at which the inbox was last processed.
+  route_map                   ; Table of the mapping between bus local ids and their respective routes in the form local_id: route_id
 ]
 
 globals [graph]
@@ -57,10 +60,12 @@ to init-buses
   set local_id (bus_id - length graph)
   set route_id (local_id mod (length predef_bus_routes))
 
+  ; Set master flag if first bus
   ifelse local_id = 0
     [ set is_master true ]
     [ set is_master false ]
 
+  ; Generate the bus route
   setup-bus-route false
   ifelse current_stop = br_start
     [ set on_route true ]
@@ -68,7 +73,14 @@ to init-buses
   set path_to_start_route []
 
   ; Create table for storing messages sent
+  set last_read -1
   set messages_sent table:make
+  table:put messages_sent "INIT" table:make
+
+  ;Create table for storing bus routes.
+  set route_map table:make
+
+  broadcast "INIT" (word local_id " " route_id)
 end
 
 ; Setup the bus route to be the forward pass or the backward pass.
@@ -94,6 +106,8 @@ to execute-actions
   if is_master [
     manage-fleet
   ]
+
+  process-inbox
 
   ifelse not on_route
   [
@@ -209,8 +223,5 @@ end
 ; Sets:
 ;   {list} sos_replies
 to handle-sos-reply [message]
-  let sender item 1 message
-  let msg item 2 message
-  let capacity read-from-string substring msg (position " " msg + 1) (length msg)
-  set sos_replies lput [sender capacity] sos_replies
+  
 end

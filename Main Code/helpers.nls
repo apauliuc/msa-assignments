@@ -1,0 +1,11 @@
+to split_string [string]
+
+end
+
+; "INIT <local_id> <route_id>"
+;to process-init-message [message_type received_message]
+;  let message_body substring msg (position " " msg + 1) + length msg
+;
+;  let local_id substring 0 position " " message_body
+;  let route_id substring (position " " + 1) message_body
+;end
