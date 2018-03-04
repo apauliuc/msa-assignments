@@ -44,6 +44,7 @@ buses-own [
   master_fleet                ; Table of master busses in the form (bus_id: route_id)
   route_fleet                 ; Table of busses on the master's route in the form (bus_id: bus_capacity)
   sos_replies                 ; List of reply information for an SOS message in the form ([bus_id capacity])
+  sos_senders                 ; Table of master buses that have sent an SOS message in the form (tick: [sos_sender_bus_id])
 ]
 
 globals [graph]
@@ -99,35 +100,11 @@ to init-buses
   table:put outbox "SOS-REPLY" table:make
 
   if is_master [
-    ; Set init state
-    format-log 0 "Master bus spawned. Setting state to 'MASTER-INIT'."
-    set state "MASTER-INIT"
-
-    ; Masters take predefined bus routes.
-    set route_id (local_id mod (length predef_bus_routes))
-
-    ; Create master fleet table and initialise with own route.
-    set master_fleet table:make
-    table:put master_fleet bus_id route_id
-
-    ; Create route fleet table.
-    set route_fleet table:make
-
-    ; Generate the bus route.
-    setup-bus-route false
-    set on_route false
-    set path_to_start_route []
-    
-    ; Broadcast route to all masters.
-    broadcast-to-masters "MASTER-INIT" route_id
+    master-init
   ]
 
   if is_worker [
-    format-log 0 "Worker bus spawned. Setting state to 'WORKER-INIT'."
-    set state "WORKER-INIT"
-
-    ; Initialise route id to fake value.
-    set route_id -1
+    worker-init
   ]
 end
 

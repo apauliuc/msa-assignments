@@ -1,3 +1,34 @@
+; Initialise master bus.
+to master-init
+  ; Set init state
+  format-log 0 "Master bus spawned. Setting state to 'MASTER-INIT'."
+  set state "MASTER-INIT"
+
+  ; Masters take predefined bus routes.
+  set route_id (local_id mod (length predef_bus_routes))
+
+  ; Create master fleet table and initialise with own route.
+  set master_fleet table:make
+  table:put master_fleet bus_id route_id
+
+  ; Create route fleet table.
+  set route_fleet table:make
+
+  ; Generate the bus route.
+  setup-bus-route false
+  set on_route false
+  set path_to_start_route []
+
+  ; Create sos_replies list.
+  set sos_replies []
+
+  ; Create sos_masters list.
+  set sos_senders table:make
+
+  ; Broadcast route to all masters.
+  broadcast-to-masters "MASTER-INIT" route_id
+end
+
 ; Exectue block for master buses.
 to master-execute-actions
   ; Hack to add all the masters.
@@ -105,10 +136,10 @@ end
 
 ; Send SOS to all buses if necessary.
 to master-check-send-sos
-  let fleet_capacity get_fleet_capacity
-  if (count-passengers-on-route bus_route) > fleet_capacity [
-    format-log 0 "Sending SOS message to all buses."
-    broadcast "SOS" ""
+  let overcapacity ((count-passengers-on-route bus_route) - get_fleet_capacity)
+  if overcapacity > 0 [
+    format-log 0 (word "Sending SOS message to all buses. Overcapacity" overcapacity ".")
+    broadcast "SOS" overcapacity
   ]
 end
 

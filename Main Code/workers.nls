@@ -1,3 +1,12 @@
+;Initialise worker bus.
+to worker-init
+  format-log 0 "Worker bus spawned. Setting state to 'WORKER-INIT'."
+  set state "WORKER-INIT"
+
+  ; Initialise route id to fake value.
+  set route_id -1
+end
+
 ; Exectue block for worker buses.
 to worker-execute-actions
   worker-update-state

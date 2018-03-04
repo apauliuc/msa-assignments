@@ -18,6 +18,9 @@ to master-process-inbox
     if message_type = "MASTER-INIT-REPLY" [
       process-master-init-reply-message message_type message_body sender
     ]
+    if message_type = "SOS" [
+      process-sos-message message_type message_body sender
+    ]
     if message_type = "SOS-REPLY" [
       process-sos-reply message_type message_body sender
     ]
@@ -58,6 +61,28 @@ to process-master-init-reply-message [message_type message_body sender]
 
   table:put master_fleet sender read-from-string route
 end
+
+; Store the list of sos-senders by tick.
+; Params:
+;   {string} message type:
+;   {list} message_body:
+;   {num} sender_id:
+; Sets:
+;   {table} sos_senders
+to process-sos-message [message_type message_body sender_id]
+  let message_tokens (split_string message_body)
+  ifelse (table:has-key? sos_senders ticks)
+  [
+    let current_senders (table:get sos_senders ticks)
+    set current_senders (lput (read-from-string (item 0 message_tokens)) current_senders)
+    table:put sos_senders ticks current_senders
+  ]
+  [
+    let current_senders (list (read-from-string (item 0 message_tokens)))
+    table:put sos_senders ticks current_senders
+  ]
+end
+
 
 ; Processes the SOS-REPLY message.
 ; Params:
