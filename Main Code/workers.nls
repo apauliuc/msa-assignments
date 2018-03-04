@@ -4,6 +4,7 @@ to worker-execute-actions
 
   if state = "WORKER-INIT" [
     ; Broadcast init to masters.
+    ; move to init.
     broadcast-to-masters "WORKER_INIT" ""
   ]
 
