@@ -52,3 +52,6 @@ end
 to process-help-request-message [message_type message_body sender_id]
   format-log 0 (word "Received HELP-REQUEST from " sender_id)
 end
+
+to process-worker-init-reply-message [message_type message_body sender_id]
+end

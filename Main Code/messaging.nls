@@ -42,7 +42,7 @@ end
 ;   {string} message_type: the type of message (e.g. 'SOS', 'INIT')
 ;   {string} message: the message to be sent; any time of string
 to broadcast-to-masters [message_type message]
-  let no_masters length predef_bus_routes
+  let no_masters (min (list (length predef_bus_routes) (count buses)))
   let i (length graph)
   while [i < (length graph + no_masters)]
   [

@@ -1,15 +1,13 @@
 ; Exectue block for master buses.
 to master-execute-actions
-  master-update-state
-
-  if state = "MASTER-INIT" [
-    ; Hack to add all the masters.
-    if bus_id = length graph and ticks = 2 [
+  ; Hack to add all the masters.
+  if bus_id = length graph and ticks = 2 [
       add-masters
-    ]
+  ]
 
-    ; Broadcast route to all masters.
-    broadcast-to-masters "MASTER-INIT" route_id
+  master-update-state
+  if state = "MASTER-INIT"  [
+    ; do nothing for now.
   ]
 
   if state = "MOVING_TO_ROUTE" [
@@ -117,9 +115,9 @@ end
 ; Add new bus if SOS message expired.
 to master-check-add-bus
   let sos_messages (table:get outbox "SOS")
-  if (table:length sos_messages) = 0 [
-    let fleet_capacity get_fleet_capacity
-    let overcapacity (count-passengers-on-route fleet_capacity)
+  ; modify to make it work.
+  if (table:length sos_messages) = 0 and (length sos_replies) = 0 [
+    let overcapacity ((count-passengers-on-route bus_route) - get_fleet_capacity)
 
     if overcapacity <= 12 [ add-bus 1 ]
     if overcapacity > 12 and overcapacity <= 60  [ add-bus 2 ]

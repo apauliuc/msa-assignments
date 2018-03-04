@@ -56,7 +56,7 @@ to process-master-init-reply-message [message_type message_body sender]
   let message_tokens split_string message_body " "
   let route (item 0 message_tokens)
 
-  table:put master_fleet sender route
+  table:put master_fleet sender read-from-string route
 end
 
 ; Processes the SOS-REPLY message.

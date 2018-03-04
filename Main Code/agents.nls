@@ -42,7 +42,7 @@ buses-own [
 
   ; Only available on master buses
   master_fleet                ; Table of master busses in the form (bus_id: route_id)
-  route_fleet                  ; Table of busses on the master's route.
+  route_fleet                 ; Table of busses on the master's route in the form (bus_id: bus_capacity)
   sos_replies                 ; List of reply information for an SOS message in the form ([bus_id capacity])
 ]
 
@@ -117,6 +117,9 @@ to init-buses
     setup-bus-route false
     set on_route false
     set path_to_start_route []
+    
+    ; Broadcast route to all masters.
+    broadcast-to-masters "MASTER-INIT" route_id
   ]
 
   if is_worker [
