@@ -1,0 +1,70 @@
+; Exectue block for worker buses.
+to worker-execute-actions
+  worker-update-state
+
+  if state = "WORKER-INIT" [
+    ; Broadcast init to masters.
+    broadcast-to-masters "WORKER_INIT" ""
+  ]
+
+  if state = "MOVING_TO_ROUTE" [
+    ifelse current_stop = br_start
+    [
+      worker-register-reached-start
+    ]
+    [
+      find-path-to-start
+      travel-to first path_to_start_route
+
+      if current_stop = br_start [
+        worker-register-reached-start
+      ]
+    ]
+  ]
+
+  if state = "BUSINESS_AS_USUAL" [
+    ifelse has-passengers
+    [
+      ifelse current_stop = br_stop
+      [
+        setup-bus-route true
+        set finished_current_pass true
+      ]
+      [
+        set finished_current_pass false
+      ]
+
+      if at-stop [
+        drop-off
+        pick-up
+        remove-stop-from-route
+      ]
+
+      travel-to first remaining_bus_route
+    ]
+    [
+      format-log 1 (word "No passengers on route " route_id ".")
+    ]
+  ]
+end
+
+; Worker update state
+; Sets:
+;   {string} state
+to worker-update-state
+  if state = "WORKER_INIT" and route_id != -1 [
+    format-log 0 "Received route. Moving state to 'MOVING_TO_ROUTE'."
+    set state "MOVING_TO_ROUTE"
+  ]
+
+  if state = "MOVING_TO_ROUTE" and on_route [
+    format-log 0 "Reached start of route. Moving state to 'BUSINESS_AS_USUAL'."
+    set state "BUSINESS_AS_USUAL"
+  ]
+end
+
+; Registers an arrival internally and sends arrival to master.
+to worker-register-reached-start
+  register-reached-start
+  ; Send message to master somehow.
+end

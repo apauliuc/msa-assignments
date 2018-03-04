@@ -1,0 +1,145 @@
+; Exectue block for master buses.
+to master-execute-actions
+  master-update-state
+
+  if state = "MASTER-INIT" [
+    ; Hack to add all the masters.
+    if bus_id = length graph and ticks = 2 [
+      add-masters
+    ]
+
+    ; Broadcast route to all masters.
+    broadcast-to-masters "MASTER-INIT" route_id
+  ]
+
+  if state = "MOVING_TO_ROUTE" [
+    ifelse current_stop = br_start
+    [
+      master-register-reached-start
+    ]
+    [
+      find-path-to-start
+      travel-to first path_to_start_route
+
+      if current_stop = br_start [
+        master-register-reached-start
+      ]
+    ]
+  ]
+
+  if state = "BUSINESS_AS_USUAL" [
+    master-check-send-sos
+
+    ifelse has-passengers
+    [
+
+      ifelse current_stop = br_stop
+      [
+        setup-bus-route true
+        set finished_current_pass true
+      ]
+      [
+        set finished_current_pass false
+      ]
+
+      if at-stop [
+        drop-off
+        pick-up
+        remove-stop-from-route
+      ]
+
+      travel-to first remaining_bus_route
+    ]
+    [
+      format-log 1 (word "No passengers on route " route_id ".")
+    ]
+  ]
+
+  if state = "SOS_SENT" [
+    master-check-add-bus
+
+    ifelse has-passengers
+    [
+      if current_stop = br_stop [
+        setup-bus-route true
+        set finished_current_pass true
+      ]
+      if at-stop [
+        drop-off
+        pick-up
+        remove-stop-from-route
+      ]
+
+      travel-to first remaining_bus_route
+    ]
+    [
+      format-log 1 (word "No passengers on route " route_id ".")
+    ]
+  ]
+end
+
+; Master update state
+; Sets:
+;   {string} state
+to master-update-state
+  let master_init_messages table:get outbox "MASTER-INIT"
+  if state = "MASTER-INIT" and table:length master_init_messages = 0 [
+    format-log 0 "MASTER-INIT messages expired. Moving state to 'MOVING_TO_ROUTE'."
+    set state "MOVING_TO_ROUTE"
+  ]
+
+  if state = "MOVING_TO_ROUTE" and on_route [
+    format-log 0 "Reached start of route. Moving state to 'BUSINESS_AS_USUAL'."
+    set state "BUSINESS_AS_USUAL"
+  ]
+
+  let sos_messages table:get outbox "SOS"
+  if state = "BUSINESS_AS_USUAL" and table:length sos_messages > 0 [
+    format-log 0 "SOS messages have been sent out. Moving state to 'SOS_SENT'"
+    set state "SOS_SENT"
+  ]
+
+  if state = "SOS_SENT" and table:length sos_messages = 0 and finished_current_pass [
+    format-log 0 "Full pass completed with no replies to SOS. Moving state to 'BUSINESS_AS_USUAL'"
+    set state "BUSINESS_AS_USUAL"
+  ]
+end
+
+; Send SOS to all buses if necessary.
+to master-check-send-sos
+  let fleet_capacity get_fleet_capacity
+  if (count-passengers-on-route bus_route) > fleet_capacity [
+    format-log 0 "Sending SOS message to all buses."
+    broadcast "SOS" ""
+  ]
+end
+
+; Add new bus if SOS message expired.
+to master-check-add-bus
+  let sos_messages (table:get outbox "SOS")
+  if (table:length sos_messages) = 0 [
+    let fleet_capacity get_fleet_capacity
+    let overcapacity (count-passengers-on-route fleet_capacity)
+
+    if overcapacity <= 12 [ add-bus 1 ]
+    if overcapacity > 12 and overcapacity <= 60  [ add-bus 2 ]
+    if overcapacity >= 60 [add-bus 3]
+  ]
+end
+
+; Registers an arrival internally and adds the capacity to route_fleet
+; Sets:
+;   {table} route_fleet
+to master-register-reached-start
+  register-reached-start
+  table:put route_fleet bus_id bus_capacity
+end
+
+to-report get_fleet_capacity
+  let fleet_capacity 0
+  foreach (table:keys route_fleet) [
+    let fleet_bus_id ?
+    set fleet_capacity (fleet_capacity + (table:get route_fleet fleet_bus_id))
+  ]
+  report fleet_capacity
+end

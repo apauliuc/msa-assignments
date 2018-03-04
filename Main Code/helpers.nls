@@ -1,11 +1,46 @@
-to split_string [string]
+to-report split_string [string delimiter]
+  let tokens []
+  let index-start 0               ; some default value
+  let index-end (length string)   ; some default value
+  let token string                ; some default value
+  let text string
 
+  if delimiter = "" [
+    show "WARNING: delimiter is set to empty string. Fallback on reporting the given string."
+    set tokens lput string tokens
+    report tokens
+  ]
+
+  loop [
+    set index-end position delimiter text
+    ifelse index-end = false [
+      set tokens lput text tokens
+      report tokens
+    ]
+    [
+      set token substring text index-start index-end
+      set tokens lput token tokens
+      set text (substring text (index-end + 1) (length text))
+    ]
+  ]
 end
 
-; "INIT <local_id> <route_id>"
-;to process-init-message [message_type received_message]
-;  let message_body substring msg (position " " msg + 1) + length msg
-;
-;  let local_id substring 0 position " " message_body
-;  let route_id substring (position " " + 1) message_body
-;end
+; Logs to the command window in a preformatted way.
+; Params:
+;   {number} level: The severity level of the message.
+;                     0: INFO
+;                     1: WARNING
+;                     2: ERROR
+;   {string} message: The message to display
+to format-log [level message]
+  if level = 0 [
+    show (word "   INFO: " message)
+  ]
+  if level = 1 [
+    show (word "WARNING: " message)
+  ]
+  if level = 2 [
+    show (word "  ERROR: " message)
+  ]
+
+end

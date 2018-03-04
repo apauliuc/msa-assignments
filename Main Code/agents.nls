@@ -1,4 +1,4 @@
-__includes [ "graph_helpers.nls" "passengers.nls" "messaging.nls" "helpers.nls"]
+__includes [ "masters.nls" "workers.nls" "messaging.nls" "masters-messaging.nls" "workers-messaging.nls" "graph_helpers.nls" "passengers.nls" "helpers.nls"]
 extensions [table]
 buses-own [
   ; Static, read-only variables. These values never change. You can read them, but you cannot change them.
@@ -18,38 +18,57 @@ buses-own [
   bus_routes_graph            ; Sparse graph of bus routes
   local_id                    ; Bus id for humans.
   route_id                    ; Route id for humans.
+
+  state                       ; String representing the state of the bus.
+                              ;   Possible master values: "MASTER-INIT", "MOVING_TO_ROUTE", "BUSINESS_AS_USUAL" "SOS_SENT", "REQUESTED_HELP"
+                              ;   Possible worker values: "WORKER-INIT", "MOVING_TO_ROUTE", "BUSINESS_AS_USUAL", "PROVIDING_HELP"
+
   bus_route                   ; List of stops taht the bus follows forward and backward.
   remaining_bus_route         ; List of remaining stops to the final stop.
   on_route                    ; Flag for the bus being on its route; if the bus is spawned somewhere outside the route, the flag is false, once it reaches the start it will always be true.
   br_start                    ; Start point of the bus route.
   br_stop                     ; End point of the bus route.
   path_to_start_route         ; The shortest path from the current bus point to br_start.
-  bus_current_capacity        ; How many passengers are currently in the bus.
-  is_master                   ; Flag indicating if the bus has extra rights. (e.g. adding new buses.)
-  fleet                       ; List of busses currently on the road, in the form [[bus_id local_id bus_type]]
-  messages_sent               ; Table (key value pairs) of tables in the form (message_type:recipient_id: [send_tick expected_receive_tick])
-  sos_replies                 ; List of reply information for an SOS message in the form ([bus_id capacity])
-  messages_to_send            ; Don't know what this is.
+  finished_current_pass       ; Flag indicating whether the bus has finishedd the forward/backward pass of the route.
+
+  bus_count_passengers        ; How many passengers are currently in the bus.
+  bus_capacity                ; Bus passanger capacity.
+
+  is_master                   ; Flag indicating if the bus is master and has extra rights. (e.g. adding new buses.)
+  is_worker                   ; Flag indicating if the bus is only worker. (e.g. adding new buses.)
+
+  outbox                      ; Table (key value pairs) of tables in the form (message_type: recipient_id: [send_tick expected_receive_tick])
   last_read                   ; Tick at which the inbox was last processed.
-  route_map                   ; Table of the mapping between bus local ids and their respective routes in the form local_id: route_id
+
+  ; Only available on master buses
+  master_fleet                ; Table of master busses in the form (bus_id: route_id)
+  route_fleet                  ; Table of busses on the master's route.
+  sos_replies                 ; List of reply information for an SOS message in the form ([bus_id capacity])
 ]
 
 globals [graph]
 
 ; Initialise each bus.
-; Sets:
-;   {number} bus_current_capacity: how many passengers the bus is carrying.
-;   {list} graph: the graph representing the topology of the entire network of bus stops; known to all agents.
-;   {list} predef_bus_routes: the list of predefined bus routes representing the topology of entire network of bus routes; known to all agents.
-;   {number} local_id: bus id for humans.
-;   {number} route_id: route id for humans.
-;   {boolean} is_master: flag indicating bus rights.
-;   {boolean} on_route: flag indicating of bus is on route.
-;   {list} path_to_start_route: list of nodes to the beginning of the bus route.
 to init-buses
-  set bus_current_capacity 0
+  ; Set initial variables for all buses
+  set bus_count_passengers 0
   set graph [[22 15 14] [11 19 23 7] [8] [16 4 20 9] [3 5 10] [4 16 10 17] [8] [1 17 13] [2 6 9] [3 8 20] [4 5 17 13 21] [1 16 17] [20 15 22] [7 10 22 23] [0 23] [0 12 18] [3 5 11] [5 7 10 11] [15] [1 23] [3 9 12 21] [10 20 22] [0 12 13 21] [1 13 14 19]]
   set predef_bus_routes [[3 16 11 1 19] [6 8 9 3 4 5 17 7 1 19] [2 8 9 20 12 15 18] [18 15 0 14 23 19] [3 4 10 13 23 19] [3 20 21 22 0] [18 15 12 22 13 10 5 16]]
+
+  ; Define bus capacity
+  ifelse bus_type = 1
+  [
+    set bus_capacity 12
+  ]
+  [
+    ifelse bus_type = 2
+    [
+      set bus_capacity 60
+    ]
+    [
+      set bus_capacity 150
+    ]
+  ]
 
   ; The variable 'bus_routes_graph' contains the edge between X and Y
   ; only if there is a route that goes from X to Y (if there is not such route,
@@ -58,29 +77,69 @@ to init-buses
 
   ; Select bus route based on the bus id.
   set local_id (bus_id - length graph)
-  set route_id (local_id mod (length predef_bus_routes))
-
   ; Set master flag if first bus
-  ifelse local_id = 0
-    [ set is_master true ]
-    [ set is_master false ]
-
-  ; Generate the bus route
-  setup-bus-route false
-  ifelse current_stop = br_start
-    [ set on_route true ]
-    [ set on_route false ]
-  set path_to_start_route []
+  ifelse local_id < (length predef_bus_routes)
+  [
+    set is_master true
+    set is_worker false
+  ]
+  [
+    set is_master false
+    set is_worker true
+  ]
 
   ; Create table for storing messages sent
   set last_read -1
-  set messages_sent table:make
-  table:put messages_sent "INIT" table:make
+  set outbox table:make
+  table:put outbox "MASTER-INIT" table:make
+  table:put outbox "MASTER-INIT-REPLY" table:make
+  table:put outbox "WORKER-INIT" table:make
+  table:put outbox "WORKER-INIT-REPLY" table:make
+  table:put outbox "SOS" table:make
+  table:put outbox "SOS-REPLY" table:make
 
-  ;Create table for storing bus routes.
-  set route_map table:make
+  if is_master [
+    ; Set init state
+    format-log 0 "Master bus spawned. Setting state to 'MASTER-INIT'."
+    set state "MASTER-INIT"
 
-  broadcast "INIT" (word local_id " " route_id)
+    ; Masters take predefined bus routes.
+    set route_id (local_id mod (length predef_bus_routes))
+
+    ; Create master fleet table and initialise with own route.
+    set master_fleet table:make
+    table:put master_fleet bus_id route_id
+
+    ; Create route fleet table.
+    set route_fleet table:make
+
+    ; Generate the bus route.
+    setup-bus-route false
+    set on_route false
+    set path_to_start_route []
+  ]
+
+  if is_worker [
+    format-log 0 "Worker bus spawned. Setting state to 'WORKER-INIT'."
+    set state "WORKER-INIT"
+
+    ; Initialise route id to fake value.
+    set route_id -1
+  ]
+end
+
+; Ran at every tick by every bus. Add decision making strategies for your agents here. You are allowed to use the global variable 'ticks'.
+to execute-actions
+  process-outbox
+
+  if is_master [
+    master-process-inbox
+    master-execute-actions
+  ]
+  if is_worker [
+    worker-process-inbox
+    worker-execute-actions
+  ]
 end
 
 ; Setup the bus route to be the forward pass or the backward pass.
@@ -98,40 +157,6 @@ to setup-bus-route [reversed]
   set br_start first bus_route
   set br_stop last bus_route
   set remaining_bus_route bus_route
-end
-
-; Ran at every tick by every bus. Add decision making strategies for your agents here. You are allowed to use the global variable 'ticks'.
-to execute-actions
-
-  if is_master [
-    manage-fleet
-  ]
-
-  process-inbox
-
-  ifelse not on_route
-  [
-    find-path-to-start
-    travel-to first path_to_start_route
-
-    if current_stop = br_start [
-      register-reached-start
-    ]
-  ]
-  [
-    if has-passengers [
-      if current_stop = br_stop [
-        setup-bus-route true
-      ]
-      if at-stop [
-        drop-off
-        pick-up
-        remove-stop-from-route
-      ]
-
-      travel-to first remaining_bus_route
-    ]
-  ]
 end
 
 ; Register the arrival at the beginning of the bus route.
@@ -163,34 +188,35 @@ to-report has-passengers
   report count-passengers-on-route bus_route != 0 or length bus_passengers != 0
 end
 
+; Check if bus is at a stop.
 to-report at-stop
   report is-number? current_stop and current_stop != -1
 end
 
 ; Drop off passengers at current stop.
 ; Sets:
-;    {number} bus_current_capacity: nubmer of passengers in bus.
+;    {number} bus_count_passengers: nubmer of passengers in bus.
 to drop-off
   foreach bus_passengers [
     if not can-transport-one-station current_stop item 1 ? bus_route [
-      show ( word "Dropped passenger" ?)
+      format-log 0 (word "Dropped passenger" ?)
       drop-off-passenger item 0 ?
-      set bus_current_capacity length bus_passengers
+      set bus_count_passengers length bus_passengers
     ]
   ]
 end
 
 ; Pick up passengers that travel on the bus route.
 ; Sets:
-;    {number} bus_current_capacity: nubmer of passengers in bus.
+;    {number} bus_count_passengers: nubmer of passengers in bus.
 to pick-up
   let passengers_at_current_stop get-passengers-at-stop current_stop
   if length passengers_at_current_stop != 0 [
     foreach passengers_at_current_stop [
-      if can-transport-one-station current_stop item 1 ? bus_route [
-        show ( word "Picked passenger " ? )
+      if can-transport-one-station current_stop item 1 ? bus_route and bus_capacity > bus_count_passengers [
+        format-log 0 (word "Picked passenger " ? )
         pick-up-passenger item 0 ?
-        set bus_current_capacity length bus_passengers
+        set bus_count_passengers length bus_passengers
       ]
     ]
   ]
@@ -203,25 +229,12 @@ to remove-stop-from-route
   set remaining_bus_route remove-item 0 remaining_bus_route
 end
 
-; Manage the adding of the buses. Initialise a bus for every route at first and then as needed.
-to manage-fleet
-  ifelse ticks = 2
+; Add master busses (type 1) on route in tick 2
+to add-masters
+  let i 1
+  while [i < length predef_bus_routes]
   [
-    let i 1
-    while [i < length predef_bus_routes]
-    [
-      add-bus 1
-      set i i + 1
-    ]
+    add-bus 1
+    set i i + 1
   ]
-  [
-    ; add new bus if it is the case and queue a message with the bus route.
-  ]
-end
-
-; Record the reply to an SOS message by a bus.
-; Sets:
-;   {list} sos_replies
-to handle-sos-reply [message]
-  
 end

@@ -6,14 +6,17 @@
 ; Sets:
 ;   {table} messages_sent
 to send [recipient_id message_type message]
-  set recipient_id recipient_id + length graph
   let wait_time 0
-  if message_type = "SOS" [ set wait_time 2 ]
-  if message_type = "INIT" [ set wait_time 0]
+  if message_type = "WORKER-INIT" [ set wait_time 0 ]
+  if message_type = "WORKER-INIT-REPLY" [ set wait_time 0 ]
+  if message_type = "MASTER-INIT" [ set wait_time 1 ]
+  if message_type = "MASTER-INIT-REPLY" [ set wait_time 0 ]
+  if message_type = "SOS" [ set wait_time 1 ]
+  if message_type = "SOS-REPLY" [ set wait_time 1 ]
 
-  let messages_of_type table:get messages_sent message_type
-  table:put messages_of_type recipient_id (list ticks (ticks + wait_time))
-  table:put messages_sent message_type messages_of_type
+  let outbox_group (table:get outbox message_type)
+  table:put outbox_group recipient_id (list ticks (ticks + wait_time))
+  table:put outbox message_type outbox_group
 
   send-message recipient_id (word message_type " " message)
 end
@@ -23,8 +26,8 @@ end
 ;   {string} message_type: the type of message (e.g. 'sos', 'init')
 ;   {string} message: the message to be sent; any time of string
 to broadcast [message_type message]
-  let no_busses count buses - 1
-  let i 0
+  let no_busses (count buses - 1) + (length graph)
+  let i length graph
   while [i < no_busses]
   [
     if i != bus_id [
@@ -34,70 +37,37 @@ to broadcast [message_type message]
   ]
 end
 
-; Process the inbox message by message.
-; Sets:
-;   {number} last_read:
-to process-inbox
-  let received_messages filter [item 0 ? >= last_read] inbox
-  foreach received_messages [
-    let received_message ?
-    let msg item 2 received_message
-    let message_type substring msg 0 position " " msg
-    let message_body substring msg (position " " msg + 1) length msg
-
-    if message_type = "INIT" [
-      process-init-message message_type received_message
+; Send message to all masters.
+; Params:
+;   {string} message_type: the type of message (e.g. 'SOS', 'INIT')
+;   {string} message: the message to be sent; any time of string
+to broadcast-to-masters [message_type message]
+  let no_masters length predef_bus_routes
+  let i (length graph)
+  while [i < (length graph + no_masters)]
+  [
+    if i != bus_id [
+      send i message_type message
     ]
-    if message_type = "SOS" [
-      ; process sos message
-    ]
-    if message_type = "SOS-REPLY" [
-      process-sos-reply message_type received_message
-    ]
-    if message_type = "SOS-HELP" [
-      ; process decisive sos message
-    ]
+    set i i + 1
   ]
-
-  set last_read ticks
 end
 
-; Processes the SOS-REPLY message.
-; Params:
-;   {string} message type:
-;   {list} received_message:
+; Remove messages which have expired from the outbox.
 ; Sets:
-;   {table} messages_sent
-to process-sos-reply [message_type received_message]
-  let messages_of_type table:get messages_sent message_type
-  let expected_senders table:keys messages_of_type
-
-  foreach expected_senders [
-    let expected_sender ?
-    let expected_message table:get messages_of_type expected_sender
-    ifelse item 1 expected_message < ticks
-    [
-      table:remove messages_of_type expected_sender
-    ]
-    [
-      if item 1 received_message = expected_sender [
-        ; handle response from bus helper.
-        let sender item 1 expected_message
-        let msg item 2 expected_message
-        let capacity read-from-string substring msg (position " " msg + 1) (length msg)
-        set sos_replies lput (list sender capacity) sos_replies
-        ; remove sent message from bus
-        table:remove messages_of_type expected_sender
+;   {table} outbox
+to process-outbox
+  foreach table:keys outbox [
+    let message_type ?
+    let outbox_group (table:get outbox message_type)
+    foreach table:keys outbox_group [
+      let recipient_id ?
+      let sent_message_meta (table:get outbox_group recipient_id)
+      let expected_receive_tick (item 1 sent_message_meta)
+      if expected_receive_tick < ticks [
+        table:remove outbox_group recipient_id
       ]
     ]
+    table:put outbox message_type outbox_group
   ]
-
-  table:put messages_sent message_type messages_of_type
-end
-
-to process-init-message [message_type message_body]
-  let sender substring message_body 0 position " " message_body
-  let route substring message_body (position " " message_body + 1) length message_body
-  
-  table:put route_map sender route
 end

@@ -1,0 +1,54 @@
+; Process the inbox message by message.
+; Sets:
+;   {number} last_read:
+to worker-process-inbox
+  let received_messages filter [item 0 ? >= last_read] inbox
+  foreach received_messages [
+    let received_message ?
+    let message_tick item 0 received_message
+    let sender item 1 received_message
+    let msg item 2 received_message
+
+    let message_type substring msg 0 position " " msg
+    let message_body substring msg (position " " msg + 1) (length msg)
+
+    if message_type = "WORKER-INIT-REPLY" [
+      process-worker-init-reply-message message_type message_body sender
+    ]
+    if message_type = "SOS" [
+      process-sos-message message_type message_body sender
+    ]
+    if message_type = "HELP-REQUEST" [
+      process-help-request-message message_type message_body sender
+    ]
+  ]
+
+  set last_read ticks
+end
+
+; Process the master reply.
+to process-worker-init-message [message_type message_body sender_id]
+  
+end
+
+; Processes the SOS call and if bus is available, reply to message.
+; Params:
+;   {string} message_type
+;   {string} message_body
+;   {number} sender: bus id of the sender
+to process-sos-message [message_type message_body sender_id]
+  format-log 0 (word "Received SOS from bus " sender_id)
+  if (count-passengers-on-route bus_route) = 0
+  [
+    send sender_id "SOS-REPLY" bus_capacity
+  ]
+end
+
+; Register that bus will provide help after its current trip is completed.
+; Params:
+;   {string} message_type
+;   {string} message_body
+;   {number} sender: bus id of the sender
+to process-help-request-message [message_type message_body sender_id]
+  format-log 0 (word "Received HELP-REQUEST from " sender_id)
+end
