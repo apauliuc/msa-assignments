@@ -16,7 +16,7 @@ to worker-process-inbox
       process-worker-init-reply-message message_type message_body sender
     ]
     if message_type = "SOS" [
-      process-sos-message message_type message_body sender
+      worker-process-sos-message message_type message_body sender
     ]
     if message_type = "HELP-REQUEST" [
       process-help-request-message message_type message_body sender
@@ -36,7 +36,7 @@ end
 ;   {string} message_type
 ;   {string} message_body
 ;   {number} sender: bus id of the sender
-to process-sos-message [message_type message_body sender_id]
+to worker-process-sos-message [message_type message_body sender_id]
   format-log 0 (word "Received SOS from bus " sender_id)
   if (count-passengers-on-route bus_route) = 0
   [

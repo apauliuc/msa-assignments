@@ -70,7 +70,7 @@ end
 ; Sets:
 ;   {table} sos_senders
 to process-sos-message [message_type message_body sender_id]
-  let message_tokens (split_string message_body)
+  let message_tokens (split_string message_body " ")
   ifelse (table:has-key? sos_senders ticks)
   [
     let current_senders (table:get sos_senders ticks)
