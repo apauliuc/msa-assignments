@@ -1,8 +1,8 @@
 ; Initialise master bus.
 to master-init
   ; Set init state
-  format-log 0 "Master bus spawned. Setting state to 'MASTER-INIT'."
-  set state "MASTER-INIT"
+  format-log 0 "Master bus spawned. Setting state to 'MASTER_INIT'."
+  set state "MASTER_INIT"
 
   ; Masters take predefined bus routes.
   set route_id (local_id mod (length predef_bus_routes))
@@ -20,13 +20,22 @@ to master-init
   set path_to_start_route []
 
   ; Create sos_replies list.
-  set sos_replies []
+  set sos_replies table:make
 
   ; Create sos_masters list.
-  set sos_senders table:make
+  set received_sos_messages table:make
+
+  ; Create requested_workers list.
+  set worker_requests table:make
+
+  ; Create requested_workers list.
+  set worker_inits table:make
+
+  ; Create requested_workers list.
+  set worker_arrived table:make
 
   ; Broadcast route to all masters.
-  broadcast-to-masters "MASTER-INIT" route_id
+  broadcast-to-masters "MASTER_INIT" route_id
 end
 
 ; Exectue block for master buses.
@@ -37,7 +46,7 @@ to master-execute-actions
   ]
 
   master-update-state
-  if state = "MASTER-INIT"  [
+  if state = "MASTER_INIT"  [
     ; do nothing for now.
   ]
 
@@ -58,6 +67,7 @@ to master-execute-actions
 
   if state = "BUSINESS_AS_USUAL" [
     master-check-send-sos
+    master-reply-to-sos
 
     ifelse has-passengers
     [
@@ -85,7 +95,7 @@ to master-execute-actions
   ]
 
   if state = "SOS_SENT" [
-    master-check-add-bus
+    master-resolve-sos
 
     ifelse has-passengers
     [
@@ -111,9 +121,9 @@ end
 ; Sets:
 ;   {string} state
 to master-update-state
-  let master_init_messages table:get outbox "MASTER-INIT"
-  if state = "MASTER-INIT" and table:length master_init_messages = 0 [
-    format-log 0 "MASTER-INIT messages expired. Moving state to 'MOVING_TO_ROUTE'."
+  let master_init_messages table:get outbox "MASTER_INIT"
+  if state = "MASTER_INIT" and table:length master_init_messages = 0 [
+    format-log 0 "MASTER_INIT messages expired. Moving state to 'MOVING_TO_ROUTE'."
     set state "MOVING_TO_ROUTE"
   ]
 
@@ -128,32 +138,159 @@ to master-update-state
     set state "SOS_SENT"
   ]
 
+  if state = "SOS_SENT" and (table:has-key? (table:get outbox "WORKER_INIT_REPLY") ticks or table:has-key? (table:get outbox "HELP_REQUEST") ticks) [
+    format-log 0 "Help has been requested via existing worker or new bus. Moving state to 'HELP_REQUESTED'"
+    set state "HELP_REQUESTED"
+  ]
+
+  if state = "HELP_REQUESTED" and table:has-key? worker_arrived ticks [
+    format-log 0 "Help has arrived on route. Moving state to 'BUSINESS_AS_USUAL'"
+    set state "BUSINESS_AS_USUAL"
+  ]
+
   if state = "SOS_SENT" and table:length sos_messages = 0 and finished_current_pass [
     format-log 0 "Full pass completed with no replies to SOS. Moving state to 'BUSINESS_AS_USUAL'"
     set state "BUSINESS_AS_USUAL"
   ]
 end
 
-; Send SOS to all buses if necessary.
+; Send SOS to all master buses if necessary.
 to master-check-send-sos
-  let overcapacity ((count-passengers-on-route bus_route) - get_fleet_capacity)
+  let overcapacity ((count-passengers-on-route bus_route) - master-get-fleet-capacity)
   if overcapacity > 0 [
-    format-log 0 (word "Sending SOS message to all buses. Overcapacity" overcapacity ".")
-    broadcast "SOS" overcapacity
+    format-log 0 (word "Sending SOS message to all buses. Overcapacity: " overcapacity ".")
+    let request_type type-from-capacity overcapacity
+    broadcast-to-masters "SOS" request_type
+    table:put received_sos_messages ticks (list(list(bus_id request_type)))
   ]
 end
 
-; Add new bus if SOS message expired.
-to master-check-add-bus
-  let sos_messages (table:get outbox "SOS")
-  ; modify to make it work.
-  if (table:length sos_messages) = 0 and (length sos_replies) = 0 [
-    let overcapacity ((count-passengers-on-route bus_route) - get_fleet_capacity)
+; Reply to SOS message from master bus if any. Can tune the threshold parameter: 2. ;
+; TODO: extend logic for list of buses in reply.
+to master-reply-to-sos
+    let threshold 2
 
-    if overcapacity <= 12 [ add-bus 1 ]
-    if overcapacity > 12 and overcapacity <= 60  [ add-bus 2 ]
-    if overcapacity >= 60 [add-bus 3]
-  ]
+    if (table:has-key? received_sos_messages ticks)
+    [
+        format-log 0 "SOS messages received. Checking fleet capacity."
+        let current_sos_messages (table:get received_sos_messages ticks)
+
+        let fleet_capacity master-get-fleet-capacity
+        let route_demand count-passengers-on-route bus_route
+
+        let fleet (table:to-list route_fleet)
+        set fleet remove-item 0 fleet
+        set fleet map [ (replace-item 1 ? (type-from-capacity (item 1 ?))) ] fleet
+
+        if (fleet_capacity > threshold * route_demand) and (length fleet != 0)[
+            format-log 0 (word "Capacity is above threshold. Replying to message. Extra capacity: " (fleet_capacity - threshold * route_demand))
+
+            foreach current_sos_messages [
+                let current_sos_message ?
+                send (item 0 current_sos_message) "SOS_REPLY"  (item 0 fleet)
+            ]
+        ]
+    ]
+end
+
+; Resolve SOS message sent by master by calling worker or adding new bus
+to master-resolve-sos
+    ; If there are worker request, it means you need to add a new bus.
+    if table:has-key? worker_requests (ticks-2)
+    [
+        let current_worker_requests table:get worker_requests (ticks - 2)
+        set current_worker_requests group-list-by-type current_worker_requests
+
+        let current_worker_inits [ [] ]
+        ifelse table:has-key? worker_inits
+        [ set current_worker_inits table:get worker_inits (ticks) ]
+        [ log-format 1 (word "No current worker ") ]
+        set current_worker_inits group-list-by-type current_worker_inits
+
+        let associated_worker master-resolve-assocations current_worker_requests current_worker_requests
+        ifelse (item 0 associated_worker)
+        [
+            send (item 0 associated_worker) "WORKER_INIT_REPLY" bus_route
+            table:put route_fleet (item 0 associated_worker) (capacity-from-type (item 1 associated_worker))
+        ]
+        [
+            log-format 1 "No associated worker found."
+        ]
+    ]
+
+    if table:has-key received_sos_messages (ticks - 2)
+    [
+        ; Get all busses that have sent an SOS at same time as this bus. Group the list by bus type.
+        let current_sos_messages table:get received_sos_messages (ticks - 2)
+        set current_sos_messages group-list-by-type current_sos_messages
+
+        ; Get all sos replies and split the list by bus type.
+        let current_sos_replies [[] [] []]
+        if table:has-key? sos_replies ticks - 1 [
+            set current_sos_replies table:get sos_replies (ticks - 1)
+        ]
+        set current_sos_replies group-list-by-type current_sos_replies
+
+        let associated_worker master-resolve-assocations current_sos_messages current_sos_replies
+        ifelse (item 0 associated_worker)
+        [
+            send (item 0 associated_worker) "HELP_REQUEST" bus_route
+            table:put route_fleet (item 0 associated_worker) (capacity-from-type (item 1 associated_worker))
+        ]
+        [
+            log-format 0 "No associated worker found. Adding new bus."
+            let overcapacity ((count-passengers-on-route bus_route) - master-get-fleet-capacity)
+            let request_type (type-from-capacity overcapacity)
+            add-bus request_type
+        ]
+    ]
+end
+
+; Resolve association between SOS requests and responses
+; Params:
+;   {list} request_ids:
+;   {list} responder_ids:
+; Reports:
+;   {list} current_worker_requests: [bus_id bus_type] (bus_id can be false)
+to-report master-resolve-associations [request_ids responder_ids]
+    ; Iterate over bus types
+    let current_worker_requests []
+    let i 0
+    while [i <= 2]
+    [
+        let requests_by_type item i request_ids
+        let responders_by_type item i responder_ids
+
+        let curr_master_req_pos position bus_id requests_by_type
+
+        if is-number? curr_master_req_pos and curr_master_req_pos < length responders_by_type
+        [
+            ; Current master has responder; call it to help
+            report (list (item curr_master_req_pos responders_by_type) (i + 1))
+        ]
+
+        ; Store all requests for which responders do not exist
+        if length requests_by_type > length responders_by_type
+        [
+            let idx length responders_by_type
+            while [idx < length requests_by_type]
+            [
+                let worker_details (list (item idx requests_by_type) (i + 1))
+                ifelse length current_worker_requests = 0
+                [
+                    set current_worker_requests (list worker_details)
+                ]
+                [
+                    set current_worker_requests (lput worker_details current_worker_requests)
+                ]
+
+                set idx idx + 1
+            ]
+        ]
+        set i i + 1
+    ]
+    table:put worker_requests ticks current_worker_requests
+    report (list false 1)
 end
 
 ; Registers an arrival internally and adds the capacity to route_fleet
@@ -164,7 +301,7 @@ to master-register-reached-start
   table:put route_fleet bus_id bus_capacity
 end
 
-to-report get_fleet_capacity
+to-report master-get-fleet-capacity
   let fleet_capacity 0
   foreach (table:keys route_fleet) [
     let fleet_bus_id ?

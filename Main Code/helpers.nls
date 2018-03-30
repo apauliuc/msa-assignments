@@ -1,4 +1,4 @@
-to-report split_string [string delimiter]
+to-report split-string [string delimiter]
   let tokens []
   let index-start 0               ; some default value
   let index-end (length string)   ; some default value
@@ -34,13 +34,55 @@ end
 ;   {string} message: The message to display
 to format-log [level message]
   if level = 0 [
-    show (word "   INFO: " message)
+    show (word "   INFO:  " ticks "  " message)
   ]
   if level = 1 [
-    show (word "WARNING: " message)
+    show (word "WARNING:  " ticks "  " message)
   ]
   if level = 2 [
-    show (word "  ERROR: " message)
+    show (word "  ERROR:  " ticks "  " message)
   ]
 
+end
+
+; Groups a list of tuples(lists of 2 elements) by the second elements in tuples,
+; where the seconds elements must be 1, 2 or 3.
+; Params:
+;    {list<list<number>>} list_of_lists: lists of lists of numbers
+; Reports:
+;    {list<list<number>>} return_value: lists of lists of numbers
+;
+; Ex:   [[id1 type1], [id2 type2], [id3 type3], ... [idN typeN]]
+;   is transformed into:
+;       [[id1 id2] [id4 id7] [id3 id6]],
+;   where   id1 id2 are of the same type(TYPE_X), and id1<id2, and
+;           id4 id7 are of the same type(TYPE_Y), and id4<id7, and so on,
+;           and
+;           TYPE_X < TYPE_Y
+;   Note: id1,id2, ...,idN, type1, type2, ..., typeN, are numbers
+;            and type must be 1, 2 or 3.
+to-report group-list-by-type [list_of_lists]
+    let splited_by_type table:make
+
+    table:put splited_by_type 1 []
+    table:put splited_by_type 2 []
+    table:put splited_by_type 3 []
+
+    foreach list_of_lists [
+      let current_list ?
+            ; add ID to the list of IDs, by type.
+            let values table:get splited_by_type (item 1 current_list)
+            set values lput (item 0 current_list) values
+            table:put splited_by_type (item 1 current_list) values
+    ]
+
+    ; sort both the values and the keys(for keys, we create a new table, and insert keys in order)
+    let return_value table:make
+    foreach [1 2 3] [
+        let key ?
+        table:put return_value key (sort-by [ ?1 < ?2 ] table:get splited_by_type key)
+    ]
+
+    ; transform table to list of lists, and discard the former keys.
+    report map [item 1 ?1] table:to-list return_value
 end

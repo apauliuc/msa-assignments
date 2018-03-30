@@ -2,7 +2,7 @@
 ; Sets:
 ;   {number} last_read:
 to worker-process-inbox
-  let received_messages filter [item 0 ? >= last_read] inbox
+  let received_messages filter [item 0 ? >= last_read and item 0 ? < ticks] inbox
   foreach received_messages [
     let received_message ?
     let message_tick item 0 received_message
@@ -12,13 +12,10 @@ to worker-process-inbox
     let message_type substring msg 0 position " " msg
     let message_body substring msg (position " " msg + 1) (length msg)
 
-    if message_type = "WORKER-INIT-REPLY" [
+    if message_type = "WORKER_INIT_REPLY" [
       process-worker-init-reply-message message_type message_body sender
     ]
-    if message_type = "SOS" [
-      worker-process-sos-message message_type message_body sender
-    ]
-    if message_type = "HELP-REQUEST" [
+    if message_type = "HELP_REQUEST" [
       process-help-request-message message_type message_body sender
     ]
   ]
@@ -27,31 +24,23 @@ to worker-process-inbox
 end
 
 ; Process the master reply.
-to process-worker-init-message [message_type message_body sender_id]
-  
-end
+to process-worker-init-reply-message [message_type message_body sender_id]
 
-; Processes the SOS call and if bus is available, reply to message.
-; Params:
-;   {string} message_type
-;   {string} message_body
-;   {number} sender: bus id of the sender
-to worker-process-sos-message [message_type message_body sender_id]
-  format-log 0 (word "Received SOS from bus " sender_id)
-  if (count-passengers-on-route bus_route) = 0
-  [
-    send sender_id "SOS-REPLY" bus_capacity
-  ]
 end
 
 ; Register that bus will provide help after its current trip is completed.
+; In other words, it just adds the help requests in a dedicated list.
 ; Params:
 ;   {string} message_type
 ;   {string} message_body
 ;   {number} sender: bus id of the sender
 to process-help-request-message [message_type message_body sender_id]
-  format-log 0 (word "Received HELP-REQUEST from " sender_id)
-end
+    format-log 0 (word "Received HELP-REQUEST from " sender_id)
+    if not table:has-key? help_requests ticks [
+        help_requests table:put ticks []
+    ]
 
-to process-worker-init-reply-message [message_type message_body sender_id]
+    let values table:get help_requests ticks
+    set values lput [sender_id message_body] values
+    table:put help_requests ticks values
 end

@@ -1,6 +1,9 @@
 ;Initialise worker bus.
 to worker-init
-  format-log 0 "Worker bus spawned. Setting state to 'WORKER-INIT'."
+  format-log 0 "Worker bus spawned. Setting state to 'WORKER_INIT'."
+
+  set help_requests table:make
+
   set state "WORKER-INIT"
 
   ; Initialise route id to fake value.
@@ -11,10 +14,10 @@ end
 to worker-execute-actions
   worker-update-state
 
-  if state = "WORKER-INIT" [
+  if state = "WORKER_INIT" [
     ; Broadcast init to masters.
     ; move to init.
-    broadcast-to-masters "WORKER_INIT" ""
+    broadcast-to-masters "WORKER_INIT" bus_capacity
   ]
 
   if state = "MOVING_TO_ROUTE" [
@@ -56,6 +59,55 @@ to worker-execute-actions
       format-log 1 (word "No passengers on route " route_id ".")
     ]
   ]
+
+  if state = "PROVIDING_HELP" [
+    ifelse has-passengers
+    [
+      ifelse current_stop = br_stop
+      [
+;        setup-bus-route true    ; TODO: set route to helped route.
+        set finished_current_pass true
+
+        ; TODO: go to route where it is called
+        let sender_id_message_body item 0 (table:get help_requests (ticks-1))
+        let sender_id item 0 sender_id_message_body
+        let message_body item 1 sender_id_message_body
+        let new_route split-string message_body " "
+        set remaining_bus_route new_route
+        set br_start first new_route
+        set br_stop last bus_route
+        set on_route false
+        set path_to_start_route []
+        ; MUST LET MASTER KNOW THAT BUS MOVED
+        ; TODO END.
+      ]
+      [
+        set finished_current_pass false
+      ]
+
+      if at-stop [
+        drop-off
+        ; pick-up       ; TODO: pick-up just passangers in new route
+        remove-stop-from-route
+      ]
+
+      travel-to first remaining_bus_route
+    ]
+    [
+          ; TODO: go to route where it is called
+          let sender_id_message_body item 0 (table:get help_requests (ticks-1))
+          let sender_id item 0 sender_id_message_body
+          let message_body item 1 sender_id_message_body
+          let new_route split-string message_body " "
+          set remaining_bus_route new_route
+          set br_start first new_route
+          set br_stop last bus_route
+          set on_route false
+          set path_to_start_route []
+          ; MUST LET MASTER KNOW THAT BUS MOVED
+          ; TODO END.
+    ]
+  ]
 end
 
 ; Worker update state
@@ -71,10 +123,20 @@ to worker-update-state
     format-log 0 "Reached start of route. Moving state to 'BUSINESS_AS_USUAL'."
     set state "BUSINESS_AS_USUAL"
   ]
+
+  if state = "BUSINESS_AS_USUAL" and (table:has-key? help_requests (ticks-1)) and (not empty? (table:get help_requests (ticks-1))) [
+    format-log 0 "A master called for help. Moving state to 'PROVIDING_HELP'."
+    set state "PROVIDING_HELP"
+  ]
+
+  if state = "PROVIDING_HELP" and not on_route [
+    format-log 0 "bus needs to provide help, and is not on any route, but will be. Moving state to 'MOVING_TO_ROUTE'."
+    set state "MOVING_TO_ROUTE"
+  ]
 end
 
 ; Registers an arrival internally and sends arrival to master.
 to worker-register-reached-start
   register-reached-start
-  ; Send message to master somehow.
+  send my_master_id "HELP_ARRIVED" ""
 end

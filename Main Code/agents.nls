@@ -23,7 +23,7 @@ buses-own [
                               ;   Possible master values: "MASTER-INIT", "MOVING_TO_ROUTE", "BUSINESS_AS_USUAL" "SOS_SENT", "REQUESTED_HELP"
                               ;   Possible worker values: "WORKER-INIT", "MOVING_TO_ROUTE", "BUSINESS_AS_USUAL", "PROVIDING_HELP"
 
-  bus_route                   ; List of stops taht the bus follows forward and backward.
+  bus_route                   ; List of stops that the bus follows forward and backward.
   remaining_bus_route         ; List of remaining stops to the final stop.
   on_route                    ; Flag for the bus being on its route; if the bus is spawned somewhere outside the route, the flag is false, once it reaches the start it will always be true.
   br_start                    ; Start point of the bus route.
@@ -36,15 +36,21 @@ buses-own [
 
   is_master                   ; Flag indicating if the bus is master and has extra rights. (e.g. adding new buses.)
   is_worker                   ; Flag indicating if the bus is only worker. (e.g. adding new buses.)
+  my_master_id                ; The ID of the master of worker's route.
 
   outbox                      ; Table (key value pairs) of tables in the form (message_type: recipient_id: [send_tick expected_receive_tick])
   last_read                   ; Tick at which the inbox was last processed.
 
+  help_requests               ; Table of received help requests in the form (tick:[sender_id message_body])
+
   ; Only available on master buses
   master_fleet                ; Table of master busses in the form (bus_id: route_id)
   route_fleet                 ; Table of busses on the master's route in the form (bus_id: bus_capacity)
-  sos_replies                 ; List of reply information for an SOS message in the form ([bus_id capacity])
-  sos_senders                 ; Table of master buses that have sent an SOS message in the form (tick: [sos_sender_bus_id])
+  sos_replies                 ; Table of reply information for an SOS message in the form (tick: [ [bus_id capacity] ])
+  received_sos_messages       ; Table of master buses that have sent an SOS message in the form (tick: [ [sos_sender_bus_id bus_type] ])
+  worker_requests             ; Table of requests for new workes made by the master busses in the form (tick: [ [requester_id bus_type] ])
+  worker_inits                ; Table of initialised worker buses in the form (tick: [ [initialised_id bus_type] ])
+  worker_arrived              ; Table of workers arrived on route to help, in the form (tick: [bus_id])
 ]
 
 globals [graph]
@@ -57,19 +63,7 @@ to init-buses
   set predef_bus_routes [[3 16 11 1 19] [6 8 9 3 4 5 17 7 1 19] [2 8 9 20 12 15 18] [18 15 0 14 23 19] [3 4 10 13 23 19] [3 20 21 22 0] [18 15 12 22 13 10 5 16]]
 
   ; Define bus capacity
-  ifelse bus_type = 1
-  [
-    set bus_capacity 12
-  ]
-  [
-    ifelse bus_type = 2
-    [
-      set bus_capacity 60
-    ]
-    [
-      set bus_capacity 150
-    ]
-  ]
+  set bus_capacity capcity-from-type bus_type
 
   ; The variable 'bus_routes_graph' contains the edge between X and Y
   ; only if there is a route that goes from X to Y (if there is not such route,
@@ -92,12 +86,13 @@ to init-buses
   ; Create table for storing messages sent
   set last_read -1
   set outbox table:make
-  table:put outbox "MASTER-INIT" table:make
-  table:put outbox "MASTER-INIT-REPLY" table:make
-  table:put outbox "WORKER-INIT" table:make
-  table:put outbox "WORKER-INIT-REPLY" table:make
+  table:put outbox "MASTER_INIT" table:make
+  table:put outbox "MASTER_INIT_REPLY" table:make
+  table:put outbox "WORKER_INIT" table:make
+  table:put outbox "WORKER_INIT_REPLY" table:make
   table:put outbox "SOS" table:make
-  table:put outbox "SOS-REPLY" table:make
+  table:put outbox "SOS_REPLY" table:make
+
 
   if is_master [
     master-init
@@ -179,7 +174,7 @@ end
 to drop-off
   foreach bus_passengers [
     if not can-transport-one-station current_stop item 1 ? bus_route [
-      format-log 0 (word "Dropped passenger" ?)
+      ;format-log 0 (word "Dropped passenger" ?)
       drop-off-passenger item 0 ?
       set bus_count_passengers length bus_passengers
     ]
@@ -194,7 +189,7 @@ to pick-up
   if length passengers_at_current_stop != 0 [
     foreach passengers_at_current_stop [
       if can-transport-one-station current_stop item 1 ? bus_route and bus_capacity > bus_count_passengers [
-        format-log 0 (word "Picked passenger " ? )
+        ;format-log 0 (word "Picked passenger " ? )
         pick-up-passenger item 0 ?
         set bus_count_passengers length bus_passengers
       ]
@@ -217,4 +212,30 @@ to add-masters
     add-bus 1
     set i i + 1
   ]
+end
+
+; Helper method to convert capacity to corresponding bus type
+to-report type-from-capacity [capacity]
+    if capacity <= 12 [
+        report 1
+    ]
+    if capacity > 12 and capacity <= 60  [
+        report 2
+    ]
+    if capacity > 60 [
+        report 3
+    ]
+end
+
+; Helper method to convert bus type to capacity
+to-report capacity-from-type [type]
+    if type = 1 [
+        report 12
+    ]
+    if type = 2  [
+        report 60
+    ]
+    if type = 3 [
+        report 150
+    ]
 end
