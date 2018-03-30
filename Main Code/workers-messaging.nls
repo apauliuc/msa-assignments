@@ -25,7 +25,14 @@ end
 
 ; Process the master reply.
 to process-worker-init-reply-message [message_type message_body sender_id]
+    format-log 0 (word "Received WORKER_INIT_REPLY from " sender_id)
+    if not table:has-key? worker_init_replies ticks [
+        table:put worker_init_replies ticks []
+    ]
 
+    let values table:get worker_init_replies ticks
+    set values lput (list sender_id message_body) values
+    table:put worker_init_replies ticks values
 end
 
 ; Register that bus will provide help after its current trip is completed.
@@ -37,10 +44,10 @@ end
 to process-help-request-message [message_type message_body sender_id]
     format-log 0 (word "Received HELP-REQUEST from " sender_id)
     if not table:has-key? help_requests ticks [
-        help_requests table:put ticks []
+        table:put help_requests ticks []
     ]
 
     let values table:get help_requests ticks
-    set values lput [sender_id message_body] values
+    set values lput (list sender_id message_body) values
     table:put help_requests ticks values
 end

@@ -4,10 +4,14 @@ to worker-init
 
   set help_requests table:make
 
-  set state "WORKER-INIT"
+  set state "WORKER_INIT"
+  
+  set worker_init_replies table:make
+  set help_requests table:make
 
   ; Initialise route id to fake value.
   set route_id -1
+  set help_request_tick -1
 end
 
 ; Exectue block for worker buses.
@@ -17,7 +21,18 @@ to worker-execute-actions
   if state = "WORKER_INIT" [
     ; Broadcast init to masters.
     ; move to init.
-    broadcast-to-masters "WORKER_INIT" bus_capacity
+    let sent_inits table:get outbox "WORKER_INIT"
+    ifelse table:has-key? sent_inits (ticks - 2)
+    [
+        set route_id read-from-string item 1 (table:get worker_init_replies (ticks - 2))
+        setup-bus-route false
+        set on_route false
+        set path_to_start_route []
+    ]
+    [
+        format-log 0 "Broadcasting to masters"
+        broadcast-to-masters "WORKER_INIT" bus_capacity
+    ]
   ]
 
   if state = "MOVING_TO_ROUTE" [
@@ -61,25 +76,25 @@ to worker-execute-actions
   ]
 
   if state = "PROVIDING_HELP" [
-    ifelse has-passengers
+
+    if help_request_tick = -1 [
+        set help_request_tick (ticks - 1)
+    ]
+
+    ifelse bus_count_passengers != 0
     [
       ifelse current_stop = br_stop
       [
-;        setup-bus-route true    ; TODO: set route to helped route.
         set finished_current_pass true
 
-        ; TODO: go to route where it is called
-        let sender_id_message_body item 0 (table:get help_requests (ticks-1))
-        let sender_id item 0 sender_id_message_body
-        let message_body item 1 sender_id_message_body
-        let new_route split-string message_body " "
-        set remaining_bus_route new_route
-        set br_start first new_route
-        set br_stop last bus_route
+        let sender_id item 0 (table:get help_requests help_request_tick)
+        let message_body item 1 (table:get help_requests help_request_tick)
+
+        set route_id read-from-string message_body
+        setup-bus-route false
         set on_route false
         set path_to_start_route []
-        ; MUST LET MASTER KNOW THAT BUS MOVED
-        ; TODO END.
+        send sender_id "HELP_REQUEST_REPLY" "" ;LET MASTER KNOW THAT BUS MOVED
       ]
       [
         set finished_current_pass false
@@ -87,25 +102,26 @@ to worker-execute-actions
 
       if at-stop [
         drop-off
-        ; pick-up       ; TODO: pick-up just passangers in new route
         remove-stop-from-route
       ]
 
       travel-to first remaining_bus_route
     ]
     [
-          ; TODO: go to route where it is called
-          let sender_id_message_body item 0 (table:get help_requests (ticks-1))
-          let sender_id item 0 sender_id_message_body
-          let message_body item 1 sender_id_message_body
-          let new_route split-string message_body " "
-          set remaining_bus_route new_route
-          set br_start first new_route
-          set br_stop last bus_route
-          set on_route false
-          set path_to_start_route []
-          ; MUST LET MASTER KNOW THAT BUS MOVED
-          ; TODO END.
+        ifelse current_stop != -1 [
+         let sender_id item 0 (table:get help_requests (ticks - 1))
+         let message_body item 1 (table:get help_requests (ticks - 1))
+
+         set route_id read-from-string message_body
+         setup-bus-route false
+         set on_route false
+         set path_to_start_route []
+         send sender_id "HELP_REQUEST_REPLY" "" ;LET MASTER KNOW THAT BUS MOVED
+
+        ]
+        [
+            travel-to first remaining_bus_route
+        ]
     ]
   ]
 end
@@ -124,13 +140,13 @@ to worker-update-state
     set state "BUSINESS_AS_USUAL"
   ]
 
-  if state = "BUSINESS_AS_USUAL" and (table:has-key? help_requests (ticks-1)) and (not empty? (table:get help_requests (ticks-1))) [
+  if state = "BUSINESS_AS_USUAL" and (table:has-key? help_requests (ticks - 1)) and (not empty? (table:get help_requests (ticks - 1))) [
     format-log 0 "A master called for help. Moving state to 'PROVIDING_HELP'."
     set state "PROVIDING_HELP"
   ]
 
   if state = "PROVIDING_HELP" and not on_route [
-    format-log 0 "bus needs to provide help, and is not on any route, but will be. Moving state to 'MOVING_TO_ROUTE'."
+    format-log 0 "Bus needs to provide help, and is not on any route, but will be. Moving state to 'MOVING_TO_ROUTE'."
     set state "MOVING_TO_ROUTE"
   ]
 end

@@ -161,7 +161,8 @@ to master-check-send-sos
     format-log 0 (word "Sending SOS message to all buses. Overcapacity: " overcapacity ".")
     let request_type type-from-capacity overcapacity
     broadcast-to-masters "SOS" request_type
-    table:put received_sos_messages ticks (list(list(bus_id request_type)))
+    let received_sos_message (list bus_id request_type)
+    table:put received_sos_messages ticks (list received_sos_message)
   ]
 end
 
@@ -196,49 +197,49 @@ end
 ; Resolve SOS message sent by master by calling worker or adding new bus
 to master-resolve-sos
     ; If there are worker request, it means you need to add a new bus.
-    if table:has-key? worker_requests (ticks-2)
+    if table:has-key? worker_requests (ticks - 2)
     [
         let current_worker_requests table:get worker_requests (ticks - 2)
         set current_worker_requests group-list-by-type current_worker_requests
 
-        let current_worker_inits [ [] ]
-        ifelse table:has-key? worker_inits
-        [ set current_worker_inits table:get worker_inits (ticks) ]
-        [ log-format 1 (word "No current worker ") ]
+        let current_worker_inits []
+        ifelse table:has-key? worker_inits ticks
+        [ set current_worker_inits table:get worker_inits ticks ]
+        [ format-log 1 (word "No current worker ") ]
         set current_worker_inits group-list-by-type current_worker_inits
 
-        let associated_worker master-resolve-assocations current_worker_requests current_worker_requests
+        let associated_worker master-resolve-associations current_worker_requests current_worker_inits
         ifelse (item 0 associated_worker)
         [
-            send (item 0 associated_worker) "WORKER_INIT_REPLY" bus_route
+            send (item 0 associated_worker) "WORKER_INIT_REPLY" route_id
             table:put route_fleet (item 0 associated_worker) (capacity-from-type (item 1 associated_worker))
         ]
         [
-            log-format 1 "No associated worker found."
+            format-log 1 "No associated worker found."
         ]
     ]
 
-    if table:has-key received_sos_messages (ticks - 2)
+    if table:has-key? received_sos_messages (ticks - 2)
     [
         ; Get all busses that have sent an SOS at same time as this bus. Group the list by bus type.
         let current_sos_messages table:get received_sos_messages (ticks - 2)
         set current_sos_messages group-list-by-type current_sos_messages
 
         ; Get all sos replies and split the list by bus type.
-        let current_sos_replies [[] [] []]
-        if table:has-key? sos_replies ticks - 1 [
+        let current_sos_replies []
+        if table:has-key? sos_replies (ticks - 1) [
             set current_sos_replies table:get sos_replies (ticks - 1)
         ]
         set current_sos_replies group-list-by-type current_sos_replies
 
-        let associated_worker master-resolve-assocations current_sos_messages current_sos_replies
+        let associated_worker master-resolve-associations current_sos_messages current_sos_replies
         ifelse (item 0 associated_worker)
         [
-            send (item 0 associated_worker) "HELP_REQUEST" bus_route
+            send (item 0 associated_worker) "HELP_REQUEST" route_id
             table:put route_fleet (item 0 associated_worker) (capacity-from-type (item 1 associated_worker))
         ]
         [
-            log-format 0 "No associated worker found. Adding new bus."
+            format-log 0 "No associated worker found. Adding new bus."
             let overcapacity ((count-passengers-on-route bus_route) - master-get-fleet-capacity)
             let request_type (type-from-capacity overcapacity)
             add-bus request_type

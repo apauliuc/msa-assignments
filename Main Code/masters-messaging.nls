@@ -29,7 +29,7 @@ to master-process-inbox
       process-sos-reply message_type message_body sender
     ]
     if message_type = "HELP_ARRIVED" [
-      process-help-arrival-message message_type message_body sender
+      process-help-arrived-message message_type message_body sender
     ]
   ]
 
@@ -79,7 +79,7 @@ to process-worker-init-message [message_type message_body sender_id]
     let current_worker_inits []
     if table:has-key? worker_inits ticks
     [ set current_worker_inits table:get worker_inits ticks ]
-    set current_worker_inits lput (list sender worker_type) current_worker_inits
+    set current_worker_inits lput (list sender_id worker_type) current_worker_inits
     table:put worker_inits ticks current_worker_inits
 end
 
