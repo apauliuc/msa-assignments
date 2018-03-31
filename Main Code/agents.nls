@@ -29,7 +29,6 @@ buses-own [
   br_start                    ; Start point of the bus route.
   br_stop                     ; End point of the bus route.
   path_to_start_route         ; The shortest path from the current bus point to br_start.
-  finished_current_pass       ; Flag indicating whether the bus has finishedd the forward/backward pass of the route.
 
   bus_count_passengers        ; How many passengers are currently in the bus.
   bus_capacity                ; Bus passanger capacity.
@@ -112,7 +111,7 @@ end
 
 ; Ran at every tick by every bus. Add decision making strategies for your agents here. You are allowed to use the global variable 'ticks'.
 to execute-actions
-  process-outbox
+  ; process-outbox
 
   if is_master [
     master-process-inbox

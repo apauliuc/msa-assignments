@@ -5,7 +5,7 @@ to worker-init
   set help_requests table:make
 
   set state "WORKER_INIT"
-  
+
   set worker_init_replies table:make
   set help_requests table:make
 
@@ -22,24 +22,25 @@ to worker-execute-actions
     ; Broadcast init to masters.
     ; move to init.
     let sent_inits table:get outbox "WORKER_INIT"
-    let has_init_replys (length (table:keys sent_inits)) != 0
+    let has_init_sent (length (table:keys sent_inits)) != 0
     let wait_tick 0
-    if has_init_replys [
+    if has_init_sent [
       set wait_tick (item 1 (table:get sent_inits 24)) ; hardcoded '24' because we know that all the lists will be the same, and 24 will be a key
     ]
-    
-    ifelse has_init_replys
+
+    ifelse has_init_sent
     [
-      if ticks = wait_tick 
+      if ticks = wait_tick
       [
-        set route_id read-from-string item 1(item 0 (table:get worker_init_replies ticks)) ; work_init_replies from current ticks, because just now I received the reply
+        set route_id read-from-string item 1 (item 0 (table:get worker_init_replies ticks)) ; work_init_replies from current ticks, because just now I received the reply
         setup-bus-route false
         set on_route false
+        set my_master_id item 0 (item 0 (table:get worker_init_replies ticks))
         set path_to_start_route []
       ]
     ]
     [
-        format-log 0 "Broadcast to masters"
+        format-log 2 "Broadcasting to masters."
         broadcast-to-masters "WORKER_INIT" (type-from-capacity bus_capacity)
     ]
   ]
@@ -62,14 +63,11 @@ to worker-execute-actions
   if state = "BUSINESS_AS_USUAL" [
     ifelse has-passengers
     [
-      ifelse current_stop = br_stop
+      if current_stop = br_stop
       [
         setup-bus-route true
-        set finished_current_pass true
       ]
-      [
-        set finished_current_pass false
-      ]
+
 
       if at-stop [
         drop-off
@@ -92,10 +90,8 @@ to worker-execute-actions
 
     ifelse bus_count_passengers != 0
     [
-      ifelse current_stop = br_stop
+      if current_stop = br_stop
       [
-        set finished_current_pass true
-
         let sender_id item 0 (table:get help_requests help_request_tick)
         let message_body item 1 (table:get help_requests help_request_tick)
 
@@ -103,10 +99,8 @@ to worker-execute-actions
         setup-bus-route false
         set on_route false
         set path_to_start_route []
+        set my_master_id sender_id
         send sender_id "HELP_REQUEST_REPLY" "" ;LET MASTER KNOW THAT BUS MOVED
-      ]
-      [
-        set finished_current_pass false
       ]
 
       if at-stop [
@@ -125,6 +119,7 @@ to worker-execute-actions
          setup-bus-route false
          set on_route false
          set path_to_start_route []
+         set my_master_id sender_id
          send sender_id "HELP_REQUEST_REPLY" "" ;LET MASTER KNOW THAT BUS MOVED
 
         ]

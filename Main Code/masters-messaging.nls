@@ -1,4 +1,4 @@
-; Process the inbox message by message.
+  ; Process the inbox message by message.
 ; Sets:
 ;   {number} last_read:
 to master-process-inbox

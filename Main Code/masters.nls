@@ -72,13 +72,9 @@ to master-execute-actions
     ifelse has-passengers
     [
 
-      ifelse current_stop = br_stop
+      if current_stop = br_stop
       [
         setup-bus-route true
-        set finished_current_pass true
-      ]
-      [
-        set finished_current_pass false
       ]
 
       if at-stop [
@@ -101,7 +97,6 @@ to master-execute-actions
     [
       if current_stop = br_stop [
         setup-bus-route true
-        set finished_current_pass true
       ]
       if at-stop [
         drop-off
@@ -148,10 +143,10 @@ to master-update-state
     set state "BUSINESS_AS_USUAL"
   ]
 
-  if state = "SOS_SENT" and table:length sos_messages = 0 and finished_current_pass [
-    format-log 0 "Full pass completed with no replies to SOS. Moving state to 'BUSINESS_AS_USUAL'"
-    set state "BUSINESS_AS_USUAL"
-  ]
+  ; if state = "SOS_SENT" and table:length sos_messages = 0 and finished_current_pass [
+  ;   format-log 0 "Full pass completed with no replies to SOS. Moving state to 'BUSINESS_AS_USUAL'"
+  ;   set state "BUSINESS_AS_USUAL"
+  ; ]
 end
 
 ; Send SOS to all master buses if necessary.
@@ -162,7 +157,7 @@ to master-check-send-sos
     let request_type type-from-capacity overcapacity
     broadcast-to-masters "SOS" request_type
     let received_sos_message (list bus_id request_type)
-    table:put received_sos_messages ticks (list received_sos_message)
+    table:put received_sos_messages (ticks + 1) (list received_sos_message)
   ]
 end
 
@@ -171,7 +166,7 @@ end
 to master-reply-to-sos
     let threshold 2
 
-    if (table:has-key? received_sos_messages ticks)
+    if (table:has-key? received_sos_messages ticks and (length (table:get received_sos_messages ticks) > 1))
     [
         format-log 0 "SOS messages received. Checking fleet capacity."
         let current_sos_messages (table:get received_sos_messages ticks)
@@ -211,6 +206,7 @@ to master-resolve-sos
         let associated_worker master-resolve-associations current_worker_requests current_worker_inits
         ifelse (item 0 associated_worker != false)
         [
+            format-log 2 (word "Replying to worker" item 0 associated_worker)
             send (item 0 associated_worker) "WORKER_INIT_REPLY" route_id
             table:put route_fleet (item 0 associated_worker) (capacity-from-type (item 1 associated_worker))
         ]
@@ -219,10 +215,10 @@ to master-resolve-sos
         ]
     ]
 
-    if table:has-key? received_sos_messages (ticks - 2)
+    if table:has-key? received_sos_messages (ticks - 1)
     [
         ; Get all busses that have sent an SOS at same time as this bus. Group the list by bus type.
-        let current_sos_messages table:get received_sos_messages (ticks - 2)
+        let current_sos_messages table:get received_sos_messages (ticks - 1)
         set current_sos_messages group-list-by-type current_sos_messages
 
         ; Get all sos replies and split the list by bus type.
