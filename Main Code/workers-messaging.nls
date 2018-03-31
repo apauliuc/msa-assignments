@@ -42,7 +42,7 @@ end
 ;   {string} message_body
 ;   {number} sender: bus id of the sender
 to process-help-request-message [message_type message_body sender_id]
-    format-log 0 (word "Received HELP-REQUEST from " sender_id)
+    format-log 0 (word "Received HELP_REQUEST from " sender_id)
     if not table:has-key? help_requests ticks [
         table:put help_requests ticks []
     ]

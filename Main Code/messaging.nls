@@ -7,13 +7,13 @@
 ;   {table} messages_sent
 to send [recipient_id message_type message]
   let wait_time 0
-  if message_type = "WORKER-INIT" [ set wait_time 0 ]
-  if message_type = "WORKER-INIT-REPLY" [ set wait_time 0 ]
-  if message_type = "MASTER-INIT" [ set wait_time 1 ]
-  if message_type = "MASTER-INIT-REPLY" [ set wait_time 0 ]
+  if message_type = "WORKER_INIT" [ set wait_time 2 ]
+  if message_type = "WORKER_INIT_REPLY" [ set wait_time 0 ]
+  if message_type = "MASTER_INIT" [ set wait_time 1 ]
+  if message_type = "MASTER_INIT_REPLY" [ set wait_time 0 ]
   if message_type = "SOS" [ set wait_time 1 ]
-  if message_type = "SOS-REPLY" [ set wait_time 1 ]
-
+  if message_type = "SOS_REPLY" [ set wait_time 1 ]
+  
   let outbox_group (table:get outbox message_type)
   table:put outbox_group recipient_id (list ticks (ticks + wait_time))
   table:put outbox message_type outbox_group

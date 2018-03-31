@@ -22,16 +22,25 @@ to worker-execute-actions
     ; Broadcast init to masters.
     ; move to init.
     let sent_inits table:get outbox "WORKER_INIT"
-    ifelse table:has-key? sent_inits (ticks - 2)
+    let has_init_replys (length (table:keys sent_inits)) != 0
+    let wait_tick 0
+    if has_init_replys [
+      set wait_tick (item 1 (table:get sent_inits 24)) ; hardcoded '24' because we know that all the lists will be the same, and 24 will be a key
+    ]
+    
+    ifelse has_init_replys
     [
-        set route_id read-from-string item 1 (table:get worker_init_replies (ticks - 2))
+      if ticks = wait_tick 
+      [
+        set route_id read-from-string item 1(item 0 (table:get worker_init_replies ticks)) ; work_init_replies from current ticks, because just now I received the reply
         setup-bus-route false
         set on_route false
         set path_to_start_route []
+      ]
     ]
     [
-        format-log 0 "Broadcasting to masters"
-        broadcast-to-masters "WORKER_INIT" bus_capacity
+        format-log 0 "Broadcast to masters"
+        broadcast-to-masters "WORKER_INIT" (type-from-capacity bus_capacity)
     ]
   ]
 
@@ -71,7 +80,7 @@ to worker-execute-actions
       travel-to first remaining_bus_route
     ]
     [
-      format-log 1 (word "No passengers on route " route_id ".")
+      ; format-log 1 (word "No passengers on route " route_id ".")
     ]
   ]
 

@@ -90,7 +90,7 @@ to master-execute-actions
       travel-to first remaining_bus_route
     ]
     [
-      format-log 1 (word "No passengers on route " route_id ".")
+;      format-log 1 (word "No passengers on route " route_id ".")
     ]
   ]
 
@@ -112,7 +112,7 @@ to master-execute-actions
       travel-to first remaining_bus_route
     ]
     [
-      format-log 1 (word "No passengers on route " route_id ".")
+      ;format-log 1 (word "No passengers on route " route_id ".")
     ]
   ]
 end
@@ -209,7 +209,7 @@ to master-resolve-sos
         set current_worker_inits group-list-by-type current_worker_inits
 
         let associated_worker master-resolve-associations current_worker_requests current_worker_inits
-        ifelse (item 0 associated_worker)
+        ifelse (item 0 associated_worker != false)
         [
             send (item 0 associated_worker) "WORKER_INIT_REPLY" route_id
             table:put route_fleet (item 0 associated_worker) (capacity-from-type (item 1 associated_worker))
