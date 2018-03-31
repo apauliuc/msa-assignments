@@ -133,7 +133,7 @@ to master-update-state
     set state "SOS_SENT"
   ]
 
-  if state = "SOS_SENT" and (table:has-key? (table:get outbox "WORKER_INIT_REPLY") ticks or table:has-key? (table:get outbox "HELP_REQUEST") ticks) [
+  if state = "SOS_SENT" and (table:has-key? (table:get outbox "WORKER_INIT_REPLY") (ticks - 1) or table:has-key? (table:get outbox "HELP_REQUEST") (ticks - 1)) [
     format-log 0 "Help has been requested via existing worker or new bus. Moving state to 'HELP_REQUESTED'"
     set state "HELP_REQUESTED"
   ]
@@ -202,6 +202,11 @@ to master-resolve-sos
         [ set current_worker_inits table:get worker_inits ticks ]
         [ format-log 1 (word "No current worker ") ]
         set current_worker_inits group-list-by-type current_worker_inits
+
+        if bus_id = 30 [
+            format-log 2 current_worker_requests
+            format-log 2 current_worker_inits
+        ]
 
         let associated_worker master-resolve-associations current_worker_requests current_worker_inits
         ifelse (item 0 associated_worker != false)

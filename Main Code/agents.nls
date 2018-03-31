@@ -111,7 +111,7 @@ end
 
 ; Ran at every tick by every bus. Add decision making strategies for your agents here. You are allowed to use the global variable 'ticks'.
 to execute-actions
-  ; process-outbox
+  process-outbox
 
   if is_master [
     master-process-inbox
