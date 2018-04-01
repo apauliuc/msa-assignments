@@ -29,7 +29,10 @@ to master-process-inbox
       process-sos-reply message_type message_body sender
     ]
     if message_type = "HELP_ARRIVED" [
-      process-help-arrived-message message_type message_body sender
+        process-help-arrived-message message_type message_body sender
+    ]
+    if message_type = "PROVIDING_HELP" [
+        process-providing-help-message message_type message_body sender
     ]
     if message_type = "VOTE" [
       process-vote-message message_type message_body sender
@@ -148,10 +151,14 @@ to process-help-arrived-message [message_type message_body sender_id]
     table:put worker_arrived ticks (list sender_id)
 end
 
+to process-providing-help-message [message_type message_body sender_id]
+    table:remove route_fleet (read-from-string message_body)
+end
+
 to process-vote-message [message_type message_body sender_id]
   let message_tokens (split-string message_body " ")
   let message_details (list sender_id (read-from-string (item 0 message_tokens)) (read-from-string (item 1 message_tokens)))
-  
+
   let current_votes []
   ifelse (table:has-key? votes ticks)
   [

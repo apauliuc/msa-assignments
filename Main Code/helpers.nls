@@ -33,16 +33,17 @@ end
 ;                     2: ERROR
 ;   {string} message: The message to display
 to format-log [level message]
-  if level = 0 [
-    show (word "   INFO:  " ticks "  " message)
-  ]
-  if level = 1 [
-    show (word "WARNING:  " ticks "  " message)
-  ]
-  if level = 2 [
-    show (word "  ERROR:  " ticks "  " message)
-  ]
-
+    if enabled_log [
+        if level = 0 [
+          show (word "   INFO:  " ticks "  " message)
+        ]
+        if level = 1 [
+          show (word "WARNING:  " ticks "  " message)
+        ]
+        if level = 2 [
+          show (word "  ERROR:  " ticks "  " message)
+        ]
+    ]
 end
 
 ; Groups a list of tuples(lists of 2 elements) by the second elements in tuples,

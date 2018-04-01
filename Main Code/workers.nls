@@ -12,7 +12,7 @@ to worker-init
   ; Initialise route id to fake value.
   set route_id -1
   set help_request_tick -1
-  
+
   ;--------SCAVENGER VARIABLES--------
   set next_station -1
 end
@@ -102,6 +102,7 @@ to worker-execute-actions
 
     if help_request_tick = -1 [
         set help_request_tick (ticks - 1)
+        send my_master_id "PROVIDING_HELP" bus_id
     ]
 
     ifelse bus_count_passengers != 0
@@ -112,19 +113,20 @@ to worker-execute-actions
         let message_body item 1 (table:get help_requests help_request_tick)
 
         set route_id read-from-string message_body
+
         setup-bus-route false
         set on_route false
         set path_to_start_route []
         set my_master_id sender_id
-        send sender_id "HELP_REQUEST_REPLY" "" ;LET MASTER KNOW THAT BUS MOVED
       ]
 
       if at-stop [
         drop-off
         remove-stop-from-route
       ]
-
-      travel-to first remaining_bus_route
+      if on_route [
+        travel-to first remaining_bus_route
+      ]
     ]
     [
         ifelse current_stop != -1 [
@@ -136,8 +138,6 @@ to worker-execute-actions
          set on_route false
          set path_to_start_route []
          set my_master_id sender_id
-         send sender_id "HELP_REQUEST_REPLY" "" ;LET MASTER KNOW THAT BUS MOVED
-
         ]
         [
             travel-to first remaining_bus_route
@@ -168,6 +168,7 @@ to worker-update-state
   if state = "PROVIDING_HELP" and not on_route [
     format-log 0 "Bus needs to provide help, and is not on any route, but will be. Moving state to 'MOVING_TO_ROUTE'."
     set state "MOVING_TO_ROUTE"
+    set help_request_tick -1
   ]
 end
 

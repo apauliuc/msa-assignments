@@ -43,11 +43,5 @@ end
 ;   {number} sender: bus id of the sender
 to process-help-request-message [message_type message_body sender_id]
     format-log 0 (word "Received HELP_REQUEST from " sender_id)
-    if not table:has-key? help_requests ticks [
-        table:put help_requests ticks []
-    ]
-
-    let values table:get help_requests ticks
-    set values lput (list sender_id message_body) values
-    table:put help_requests ticks values
+    table:put help_requests ticks (list sender_id message_body)
 end
