@@ -127,7 +127,7 @@ end
 to masters-vote
   let overcapacity ((count-passengers-on-route bus_route) - master-get-fleet-capacity)
 ;  let threshold master-get-fleet-capacity
-  let threshold -20
+  let threshold 0
   ifelse overcapacity > threshold [   
     let request_type 1 ; for now, we only add one type of buses.
     
