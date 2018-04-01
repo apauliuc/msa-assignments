@@ -70,7 +70,7 @@ globals [graph]
 
 ; Initialise each bus.
 to init-buses
-  set enabled_log true
+  set enabled_log false
   ; Set initial variables for all buses
   set bus_count_passengers 0
   set graph [[22 15 14] [11 19 23 7] [8] [16 4 20 9] [3 5 10] [4 16 10 17] [8] [1 17 13] [2 6 9] [3 8 20] [4 5 17 13 21] [1 16 17] [20 15 22] [7 10 22 23] [0 23] [0 12 18] [3 5 11] [5 7 10 11] [15] [1 23] [3 9 12 21] [10 20 22] [0 12 13 21] [1 13 14 19]]
@@ -180,11 +180,16 @@ to find-path-to-start
   ]
 end
 
-; Check if route and bus have waiting or travelling passengers.
+; Check if route and bus have waiting or travelling passengers (also check revrese of route).
 ; Reports:
 ;    {boolean} passengers exist.
 to-report has-passengers
-  report count-passengers-on-route bus_route != 0 or length bus_passengers != 0
+  let passengers_on_route count-passengers-on-route bus_route
+  let reversed_route reverse bus_route
+  let passengers_on_inverse_route count-passengers-on-route reversed_route
+  
+  let total_passengers (passengers_on_inverse_route + passengers_on_route)
+  report total_passengers != 0 or length bus_passengers != 0
 end
 
 ; Check if bus is at a stop.

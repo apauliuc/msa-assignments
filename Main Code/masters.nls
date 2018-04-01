@@ -113,10 +113,10 @@ to master-execute-actions
 end
 
 to master-execute-voting
-  if (ticks mod 50 = 0) [
+  if (ticks mod voting_interval = 0) [
     masters-vote
   ]
-  if (ticks mod 50 = 1) and (bus_id = 24) [
+  if (ticks mod voting_interval = 1) and (bus_id = 24) [
     master-social-choice
   ]
 end
