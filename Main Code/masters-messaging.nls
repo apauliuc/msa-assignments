@@ -1,4 +1,6 @@
-  ; Process the inbox message by message.
+; Process the inbox message by message. Only messages sent between
+; last_read (incusive) and ticks (exclusive) are considered. This ensures
+; consistency in concurrent message processing.
 ; Sets:
 ;   {number} last_read:
 to master-process-inbox
@@ -44,39 +46,39 @@ end
 
 ; Store the sender's broadcasted bus route on the master_fleet and  send reply.
 ; Params:
-;   {string} message_type
-;   {string} message_body
-;   {number} sender: bus id of the sender
+;   {string} message_type: The type of message.
+;   {string} message_body: the content of the message.
+;   {number} sender_id: the bus_id of the sender
 ; Sets:
 ;   {table} master_fleet
-to process-master-init-message [message_type message_body sender]
+to process-master-init-message [message_type message_body sender_id]
   let message_tokens split-string message_body " "
   let route (item 0 message_tokens)
 
-  table:put master_fleet sender route
+  table:put master_fleet sender_id route
 
-  send sender "MASTER_INIT_REPLY" route_id
+  send sender_id "MASTER_INIT_REPLY" route_id
 end
 
 ; Store the sender's replied bus route on the master_fleet.
 ; Params:
-;   {string} message_type
-;   {string} message_body
-;   {number} sender: bus id of the sender
+;   {string} message_type: The type of message.
+;   {string} message_body: the content of the message.
+;   {number} sender_id: the bus_id of the sender
 ; Sets:
 ;   {table} master_fleet
-to process-master-init-reply-message [message_type message_body sender]
+to process-master-init-reply-message [message_type message_body sender_id]
     let message_tokens split-string message_body " "
     let route (item 0 message_tokens)
 
-    table:put master_fleet sender read-from-string route
+    table:put master_fleet sender_id read-from-string route
 end
 
-; Store the list of initialised workers and respective bus types
+; Store the list of initialised workers and respective bus types.
 ; Params:
-;   {string} message type:
-;   {list} message_body:
-;   {num} sender_jd:
+;   {string} message_type: The type of message.
+;   {string} message_body: the content of the message.
+;   {number} sender_id: the bus_id of the sender
 ; Sets:
 ;   {table} worker_inits
 to process-worker-init-message [message_type message_body sender_id]
@@ -91,9 +93,9 @@ end
 
 ; Store the list of sos-senders by tick.
 ; Params:
-;   {string} message type:
-;   {list} message_body:
-;   {num} sender_id:
+;   {string} message_type: The type of message.
+;   {string} message_body: the content of the message.
+;   {number} sender_id: the bus_id of the sender
 ; Sets:
 ;   {table} received_sos_messages
 to process-sos-message [message_type message_body sender_id]
@@ -112,11 +114,11 @@ to process-sos-message [message_type message_body sender_id]
 end
 
 
-; Processes the SOS-REPLY message.
+; Store the sos replies by tick.
 ; Params:
-;   {string} message type:
-;   {list} message_body:
-;   {num} sender_id:
+;   {string} message_type: The type of message.
+;   {string} message_body: the content of the message.
+;   {number} sender_id: the bus_id of the sender
 ; Sets:
 ;   {table} outbox
 to process-sos-reply [message_type message_body sender_id]
@@ -131,7 +133,6 @@ to process-sos-reply [message_type message_body sender_id]
     foreach expected_senders [
         let expected_sender ?
         if sender_id = expected_sender [
-            ; handle response from bus helper.
             let sender_bus_capacity read-from-string message_body
             set current_sos_replies (lput sender_bus_capacity current_sos_replies)
         ]
@@ -140,21 +141,35 @@ to process-sos-reply [message_type message_body sender_id]
     table:put sos_replies ticks current_sos_replies
 end
 
-; Processes the HELP_ARRIVED message.
+; Store the arrival of a worker by tick.
 ; Params:
-;   {string} message type:
-;   {list} message_body:
-;   {num} sender_id:
+;   {string} message_type: The type of message.
+;   {string} message_body: the content of the message.
+;   {number} sender_id: the bus_id of the sender
 ; Sets:
 ;   {table} worker_arrived
 to process-help-arrived-message [message_type message_body sender_id]
     table:put worker_arrived ticks (list sender_id)
 end
 
+; Remove a worker from the current route_fleet since it is hedaing for a new route.
+; Params:
+;   {string} message_type: The type of message.
+;   {string} message_body: the content of the message.
+;   {number} sender_id: the bus_id of the sender
+; Sets:
+;   {table} route_fleet
 to process-providing-help-message [message_type message_body sender_id]
     table:remove route_fleet (read-from-string message_body)
 end
 
+; Store all the current votes by tick
+; Params:
+;   {string} message_type: The type of message.
+;   {string} message_body: the content of the message.
+;   {number} sender_id: the bus_id of the sender
+; Sets:
+;   {table} votes
 to process-vote-message [message_type message_body sender_id]
   let message_tokens (split-string message_body " ")
   let message_details (list sender_id (read-from-string (item 0 message_tokens)) (read-from-string (item 1 message_tokens)))

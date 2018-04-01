@@ -68,6 +68,5 @@ to-report get-shortest-path [my_graph source target]
     set S fput u S
     set u (item u prev)
   ]
-  ; set S fput u S   ;not needed to put the source node in path
   report S
 end

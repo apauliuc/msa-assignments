@@ -37,7 +37,7 @@ to master-init
   ; Create votes list.
   set votes table:make
 
-  ; MAsters will vote for adding a new scavengers from 50 to 50 seconds.
+  ; Masters will vote for adding a new scavengers from 50 to 50 ticks.
   set voting_interval 50
 
   ; Broadcast route to all masters.
@@ -52,9 +52,6 @@ to master-execute-actions
   ]
 
   master-update-state
-  if state = "MASTER_INIT"  [
-    ; do nothing for now.
-  ]
 
   if state = "MOVING_TO_ROUTE" [
     ifelse current_stop = br_start
@@ -113,11 +110,44 @@ to master-execute-actions
 end
 
 to master-execute-voting
-  if (ticks mod voting_interval = 0) [
+  if (ticks mod 50 = 0) [
     masters-vote
   ]
-  if (ticks mod voting_interval = 1) and (bus_id = 24) [
+  if (ticks mod 50 = 1) and (bus_id = 24) [
     master-social-choice
+  ]
+end
+
+; Each master updates its state depending on the current and past circumstances.
+; Each state has a specific set of actions that the bus will take.
+; Sets:
+;   {string} state
+to master-update-state
+  let master_init_messages table:get outbox "MASTER_INIT"
+  if state = "MASTER_INIT" and table:length master_init_messages = 0 [
+    format-log 0 "MASTER_INIT messages expired. Moving state to 'MOVING_TO_ROUTE'."
+    set state "MOVING_TO_ROUTE"
+  ]
+
+  if state = "MOVING_TO_ROUTE" and on_route [
+    format-log 0 "Reached start of route. Moving state to 'BUSINESS_AS_USUAL'."
+    set state "BUSINESS_AS_USUAL"
+  ]
+
+  let sos_messages table:get outbox "SOS"
+  if state = "BUSINESS_AS_USUAL" and table:length sos_messages > 0 [
+    format-log 0 "SOS messages have been sent out. Moving state to 'SOS_SENT'"
+    set state "SOS_SENT"
+  ]
+
+  if state = "SOS_SENT" and (table:has-key? (table:get outbox "WORKER_INIT_REPLY") (ticks - 1) or table:has-key? (table:get outbox "HELP_REQUEST") (ticks - 1)) [
+    format-log 0 "Help has been requested via existing worker or new bus. Moving state to 'HELP_REQUESTED'"
+    set state "HELP_REQUESTED"
+  ]
+
+  if state = "HELP_REQUESTED" and table:has-key? worker_arrived ticks [
+    format-log 0 "Help has arrived on route. Moving state to 'BUSINESS_AS_USUAL'"
+    set state "BUSINESS_AS_USUAL"
   ]
 end
 
@@ -168,43 +198,6 @@ to master-social-choice
   ]
 end
 
-; Master update state
-; Sets:
-;   {string} state
-to master-update-state
-  let master_init_messages table:get outbox "MASTER_INIT"
-  if state = "MASTER_INIT" and table:length master_init_messages = 0 [
-    format-log 0 "MASTER_INIT messages expired. Moving state to 'MOVING_TO_ROUTE'."
-    set state "MOVING_TO_ROUTE"
-  ]
-
-  if state = "MOVING_TO_ROUTE" and on_route [
-    format-log 0 "Reached start of route. Moving state to 'BUSINESS_AS_USUAL'."
-    set state "BUSINESS_AS_USUAL"
-  ]
-
-  let sos_messages table:get outbox "SOS"
-  if state = "BUSINESS_AS_USUAL" and table:length sos_messages > 0 [
-    format-log 0 "SOS messages have been sent out. Moving state to 'SOS_SENT'"
-    set state "SOS_SENT"
-  ]
-
-  if state = "SOS_SENT" and (table:has-key? (table:get outbox "WORKER_INIT_REPLY") (ticks - 1) or table:has-key? (table:get outbox "HELP_REQUEST") (ticks - 1)) [
-    format-log 0 "Help has been requested via existing worker or new bus. Moving state to 'HELP_REQUESTED'"
-    set state "HELP_REQUESTED"
-  ]
-
-  if state = "HELP_REQUESTED" and table:has-key? worker_arrived ticks [
-    format-log 0 "Help has arrived on route. Moving state to 'BUSINESS_AS_USUAL'"
-    set state "BUSINESS_AS_USUAL"
-  ]
-
-  ; if state = "SOS_SENT" and table:length sos_messages = 0 and finished_current_pass [
-  ;   format-log 0 "Full pass completed with no replies to SOS. Moving state to 'BUSINESS_AS_USUAL'"
-  ;   set state "BUSINESS_AS_USUAL"
-  ; ]
-end
-
 ; Send SOS to all master buses if necessary.
 to master-check-send-sos
   let overcapacity ((count-passengers-on-route bus_route) - master-get-fleet-capacity)
@@ -217,8 +210,10 @@ to master-check-send-sos
   ]
 end
 
-; Reply to SOS message from master bus if any. Can tune the threshold parameter: 2. ;
-; TODO: extend logic for list of buses in reply.
+; Reply to SOS message from master bus if any. The first non-master bus in the fleet is
+; sent as a reply. This could be improved to take into account request type.
+; Params:
+;   threshold: could be tuned for better performance. Default 2.
 to master-reply-to-sos
     let threshold 2
 
@@ -248,7 +243,12 @@ to master-reply-to-sos
     ]
 end
 
-; Resolve SOS message sent by master by calling worker or adding new bus
+; Resolve SOS message sent by master. First, the bus tries to find an existing worker
+; from the SOS replies. If that fails, it adds a new worker. SOS messages and SOS
+; replies are split by bus_type into 3 lists and sorted based on bus_id in order for matching to take
+; place without any conflicts.
+; Sets:
+;   {table} route_fleet
 to master-resolve-sos
     ; If there are worker request, it means you need to add a new bus.
     if table:has-key? worker_requests (ticks - 2)
@@ -304,8 +304,8 @@ end
 
 ; Resolve association between SOS requests and responses
 ; Params:
-;   {list} request_ids:
-;   {list} responder_ids:
+;   {list} request_ids: ids of the requesters.
+;   {list} responder_ids: ids of worker busses offered for help.
 ; Reports:
 ;   {list} current_worker_requests: [bus_id bus_type] (bus_id can be false)
 to-report master-resolve-associations [request_ids responder_ids]
@@ -349,7 +349,7 @@ to-report master-resolve-associations [request_ids responder_ids]
     report (list false 1)
 end
 
-; Registers an arrival internally and adds the capacity to route_fleet
+; Registers an arrival internally and adds the capacity to route_fleet.
 ; Sets:
 ;   {table} route_fleet
 to master-register-reached-start
@@ -357,6 +357,9 @@ to master-register-reached-start
   table:put route_fleet bus_id bus_capacity
 end
 
+; Calculates the capacity of the fleet based on the bus type.
+; Reports:
+;   {number} capacity of fleet.
 to-report master-get-fleet-capacity
   let fleet_capacity 0
   foreach (table:keys route_fleet) [

@@ -42,6 +42,7 @@ to-report can-transport-one-station [passenger_position passenger_destination ro
   ]
 end
 
+; Count all the passengers in all the stations at the current tick.
 to-report count-passengers-in-stations
   let pass 0
   foreach (n-values 24 [?])

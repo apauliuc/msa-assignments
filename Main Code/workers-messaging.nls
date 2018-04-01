@@ -1,4 +1,6 @@
-; Process the inbox message by message.
+; Process the inbox message by message. Only messages sent between
+; last_read (incusive) and ticks (exclusive) are considered. This ensures
+; consistency in concurrent message processing.
 ; Sets:
 ;   {number} last_read:
 to worker-process-inbox
@@ -23,7 +25,9 @@ to worker-process-inbox
   set last_read ticks
 end
 
-; Process the master reply.
+; Store the reply of a master by tick.
+; Sets:
+;   {table} worker_init
 to process-worker-init-reply-message [message_type message_body sender_id]
     format-log 0 (word "Received WORKER_INIT_REPLY from " sender_id)
     if not table:has-key? worker_init_replies ticks [
@@ -38,9 +42,11 @@ end
 ; Register that bus will provide help after its current trip is completed.
 ; In other words, it just adds the help requests in a dedicated list.
 ; Params:
-;   {string} message_type
-;   {string} message_body
-;   {number} sender: bus id of the sender
+;   {string} message_type: The type of message.
+;   {string} message_body: the content of the message.
+;   {number} sender_id: the bus_id of the sender
+; Sets:
+;   {table} help_requests
 to process-help-request-message [message_type message_body sender_id]
     format-log 0 (word "Received HELP_REQUEST from " sender_id)
     table:put help_requests ticks (list sender_id message_body)

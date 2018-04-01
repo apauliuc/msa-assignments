@@ -62,6 +62,7 @@ buses-own [
   ; Only available to scavenger buses
   next_station                ; Variable representing the short term destination of the scavenger
 
+  ; Misc
   enabled_log                 ; Whether to enable logging or not.
 
 ]
@@ -71,22 +72,22 @@ globals [graph]
 ; Initialise each bus.
 to init-buses
   set enabled_log false
-  ; Set initial variables for all buses
+  ; Set initial variables for all buses.
   set bus_count_passengers 0
   set graph [[22 15 14] [11 19 23 7] [8] [16 4 20 9] [3 5 10] [4 16 10 17] [8] [1 17 13] [2 6 9] [3 8 20] [4 5 17 13 21] [1 16 17] [20 15 22] [7 10 22 23] [0 23] [0 12 18] [3 5 11] [5 7 10 11] [15] [1 23] [3 9 12 21] [10 20 22] [0 12 13 21] [1 13 14 19]]
   set predef_bus_routes [[3 16 11 1 19] [6 8 9 3 4 5 17 7 1 19] [2 8 9 20 12 15 18] [18 15 0 14 23 19] [3 4 10 13 23 19] [3 20 21 22 0] [18 15 12 22 13 10 5 16]]
 
-  ; Define bus capacity
+  ; Define bus capacity.
   set bus_capacity capacity-from-type bus_type
 
-  ; The variable 'bus_routes_graph' contains the edge between X and Y
-  ; only if there is a route that goes from X to Y (if there is not such route,
-  ; even if there is a road between X and Y, the 'bus_routes_graph' does not contrain it)
+  ; The variable 'bus_routes_graph' contains the edge between X and Y.
+  ; Only if there is a route that goes from X to Y (if there is not such route
+  ; even if there is a road between X and Y, the 'bus_routes_graph' does not contrain it).
   set bus_routes_graph create-graph-from-bus-routes predef_bus_routes
 
   ; Select bus route based on the bus id.
   set local_id (bus_id - length graph)
-  ; Set master flag if first bus
+  ; Set bus category flag. All scavengers are first initialised as workers, and later transformed into scavengers.
   ifelse local_id < (length predef_bus_routes)
   [
     set is_master true
@@ -96,9 +97,9 @@ to init-buses
     set is_master false
     set is_worker true
   ]
-  set is_scavenger false ; all scavengers are first initialised as workers, and later transformed into scavengers
+  set is_scavenger false
 
-  ; Create table for storing messages sent
+  ; Create table for storing sent messages.
   set last_read -1
   set outbox table:make
   table:put outbox "MASTER_INIT" table:make
@@ -111,7 +112,6 @@ to init-buses
   table:put outbox "HELP_ARRIVED" table:make
   table:put outbox "PROVIDING_HELP" table:make
   table:put outbox "VOTE" table:make
-
 
   if is_master [
     master-init
@@ -144,11 +144,11 @@ end
 ; Setup the bus route to be the forward pass or the backward pass.
 ; Params:
 ;   {list} given_route: a tree containing the bus' predefined stops.
-;   {boolean} reversed: flag indicating if the bus route should be sorted reversed.
+;   {boolean} reversed: flag indicating if the bus route should be reversed.
 ; Sets:
-;   {number} br_start: the beginning of the route.
-;   {number} br_stop: the end of the route.
-;   {remaining_bus_route}: the remaining stops, initialised to the full bus route.
+;   {number} br_start
+;   {number} br_stop
+;   {remaining_bus_route}
 to setup-bus-route [reversed]
   ifelse reversed
     [ set bus_route reverse bus_route ]
@@ -160,8 +160,8 @@ end
 
 ; Register the arrival at the beginning of the bus route.
 ; Sets:
-;    {boolean} on_route: set to true if the bus is at the start of the bus route.
-;    {list} path_to_start_route: set to empty if the bus is at the start of the route.
+;    {boolean} on_route
+;    {list} path_to_start_route
 to register-reached-start
   set on_route true
   set path_to_start_route []
@@ -169,7 +169,7 @@ end
 
 ; Search for path to the starting point of the route.
 ; Sets:
-;   {list} path_to_start_route: initialise the shortest path, or remove a node once reached.
+;   {list} path_to_start_route
 to find-path-to-start
   if path_to_start_route = [] [
     set path_to_start_route (get-shortest-path bus_routes_graph current_stop first remaining_bus_route)
@@ -182,12 +182,12 @@ end
 
 ; Check if route and bus have waiting or travelling passengers (also check revrese of route).
 ; Reports:
-;    {boolean} passengers exist.
+;    {boolean} Whether passengers exist.
 to-report has-passengers
   let passengers_on_route count-passengers-on-route bus_route
   let reversed_route reverse bus_route
   let passengers_on_inverse_route count-passengers-on-route reversed_route
-  
+
   let total_passengers (passengers_on_inverse_route + passengers_on_route)
   report total_passengers != 0 or length bus_passengers != 0
 end
@@ -197,9 +197,9 @@ to-report at-stop
   report is-number? current_stop and current_stop != -1
 end
 
-; Drop off passengers at current stop.
+; Drop off passengers at current stop if they cannot be transported further.
 ; Sets:
-;    {number} bus_count_passengers: nubmer of passengers in bus.
+;    {number} bus_count_passengers
 to drop-off
   foreach bus_passengers [
     if not can-transport-one-station current_stop item 1 ? bus_route [
@@ -210,9 +210,9 @@ to drop-off
   ]
 end
 
-; Pick up passengers that travel on the bus route.
+; Pick up passengers that travel on the bus route if they can be transported at least one station.
 ; Sets:
-;    {number} bus_count_passengers: nubmer of passengers in bus.
+;    {number} bus_count_passengers
 to pick-up
   let passengers_at_current_stop get-passengers-at-stop current_stop
   if length passengers_at_current_stop != 0 [
@@ -228,12 +228,12 @@ end
 
 ; Remove the current stop from the bus route.
 ; Sets:
-;    {list} remaining_bus_route: remove first element, the current stop.
+;    {list} remaining_bus_route
 to remove-stop-from-route
   set remaining_bus_route remove-item 0 remaining_bus_route
 end
 
-; Add master busses (type 1) on route in tick 2
+; Add master busses (type 1) on route in tick 2.
 to add-masters
   let i 1
   while [i < length predef_bus_routes]
@@ -241,30 +241,4 @@ to add-masters
     add-bus 1
     set i i + 1
   ]
-end
-
-; Helper method to convert capacity to corresponding bus type
-to-report type-from-capacity [capacity]
-    if capacity <= 12 [
-        report 1
-    ]
-    if capacity > 12 and capacity <= 60  [
-        report 2
-    ]
-    if capacity > 60 [
-        report 3
-    ]
-end
-
-; Helper method to convert bus type to capacity
-to-report capacity-from-type [_type]
-    if _type = 1 [
-        report 12
-    ]
-    if _type = 2  [
-        report 60
-    ]
-    if _type = 3 [
-        report 150
-    ]
 end

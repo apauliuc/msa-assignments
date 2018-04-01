@@ -1,3 +1,6 @@
+; Split string by delimiter.
+; Reports:
+;   {list} List of string blocks (e.g. split-string "a b c " " " -> ["a", "b", "c"])
 to-report split-string [string delimiter]
   let tokens []
   let index-start 0               ; some default value
@@ -25,7 +28,7 @@ to-report split-string [string delimiter]
   ]
 end
 
-; Logs to the command window in a preformatted way.
+; Logs to the command window in a preformatted way. Ignored if enabled_log is set to false.
 ; Params:
 ;   {number} level: The severity level of the message.
 ;                     0: INFO
@@ -86,4 +89,34 @@ to-report group-list-by-type [list_of_lists]
 
     ; transform table to list of lists, and discard the former keys.
     report map [item 1 ?1] table:to-list return_value
+end
+
+; Convert capacity to corresponding bus type.
+; Reports:
+;   {number} The bus type satsifying demand needs.
+to-report type-from-capacity [capacity]
+    if capacity <= 12 [
+        report 1
+    ]
+    if capacity > 12 and capacity <= 60  [
+        report 2
+    ]
+    if capacity > 60 [
+        report 3
+    ]
+end
+
+; Convert bus type to capacity
+; Reports:
+;   {number} The capacity of the bus type
+to-report capacity-from-type [_type]
+    if _type = 1 [
+        report 12
+    ]
+    if _type = 2  [
+        report 60
+    ]
+    if _type = 3 [
+        report 150
+    ]
 end

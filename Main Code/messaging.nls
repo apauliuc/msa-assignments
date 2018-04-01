@@ -62,7 +62,8 @@ to broadcast-to-masters [message_type message]
   ]
 end
 
-; Remove messages which have expired from the outbox.
+; Remove messages which have expired from the outbox. Expiring messages are a key
+; component upon which several state transitions are based.
 ; Sets:
 ;   {table} outbox
 to process-outbox

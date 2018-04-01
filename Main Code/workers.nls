@@ -13,7 +13,7 @@ to worker-init
   set route_id -1
   set help_request_tick -1
 
-  ;--------SCAVENGER VARIABLES--------
+  ; Initalise next station for scavener.
   set next_station -1
 end
 
@@ -93,9 +93,6 @@ to worker-execute-actions
 
       travel-to first remaining_bus_route
     ]
-    [
-      ; format-log 1 (word "No passengers on route " route_id ".")
-    ]
   ]
 
   if state = "PROVIDING_HELP" [
@@ -124,6 +121,7 @@ to worker-execute-actions
         drop-off
         remove-stop-from-route
       ]
+
       if on_route [
         travel-to first remaining_bus_route
       ]
@@ -146,7 +144,8 @@ to worker-execute-actions
   ]
 end
 
-; Worker update state
+; Each worker updates its state depending on the current and past circumstances.
+; Each state has a specific set of actions that the bus will take.
 ; Sets:
 ;   {string} state
 to worker-update-state
