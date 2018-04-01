@@ -1,0 +1,4 @@
+to scavenger-execute-actions
+  ; TODO: DO SCAVENGER WORK
+  format-log 0 "DO NOTHING!! YOOOHOOO!!"
+end

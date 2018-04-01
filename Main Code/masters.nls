@@ -33,6 +33,12 @@ to master-init
 
   ; Create requested_workers list.
   set worker_arrived table:make
+  
+  ; Create votes list.
+  set votes table:make
+  
+  ; MAsters will vote for adding a new scavengers from 50 to 50 seconds.
+  set voting_interval 50
 
   ; Broadcast route to all masters.
   broadcast-to-masters "MASTER_INIT" route_id
@@ -44,7 +50,7 @@ to master-execute-actions
   if bus_id = length graph and ticks = 2 [
       add-masters
   ]
-
+  
   master-update-state
   if state = "MASTER_INIT"  [
     ; do nothing for now.
@@ -103,6 +109,65 @@ to master-execute-actions
 
       travel-to first remaining_bus_route
     ]
+  ]
+end
+
+to master-execute-voting
+  if (ticks mod 50 = 0) [
+    masters-vote
+  ]
+  if (ticks mod 50 = 1) and (bus_id = 24) [
+    master-social-choice
+  ]
+end
+
+; Each master bus checks its capacity and if threshold exceeded, votes to add a bus.
+; If threshold not exceeded, it votes not to add a bus.
+; Votes will be submitted to bus with id 24.
+to masters-vote
+  let overcapacity ((count-passengers-on-route bus_route) - master-get-fleet-capacity)
+;  let threshold master-get-fleet-capacity
+  let threshold -20
+  ifelse overcapacity > threshold [   
+    let request_type 1 ; for now, we only add one type of buses.
+    
+    format-log 0 (word "Voted to add bus. Overcapacity: " overcapacity ".")
+    send 24 "VOTE" (word "true " request_type)
+  ]
+  [
+     format-log 0 (word "Voted NOT to add bus. Overcapacity: " overcapacity ".")
+     send 24 "VOTE" (word "false " "-1")
+  ]
+end
+
+; This method is called only by the bus with bus_id = 24.
+; The votings are counted, and a decision is reached on wheather to add a scavenger or not.
+to master-social-choice
+  let current_votes (table:get votes ticks)
+  let positive_votes 0
+  let negative_votes 0
+  foreach current_votes [
+    let voting_bundle ?
+    let voter (item 0 voting_bundle) ; not used yet
+    let vote (item 1 voting_bundle)
+    let voted (item 2 voting_bundle) ; not used yet
+    
+    ifelse vote = true [
+      set positive_votes (positive_votes + 1)
+    ]
+    [
+      set negative_votes (negative_votes + 1)
+    ]
+  ]
+  
+  ifelse positive_votes > negative_votes 
+  [
+    format-log 1 (word "    ADDING -> Positive votes:" positive_votes ". Negative votes:" negative_votes ".")
+    add-bus 1    ; for now, we only add one type of buses.
+     
+  ]
+  [
+    format-log 1 (word "NOT ADDING -> Positive votes:" positive_votes ". Negative votes:" negative_votes ".")  
   ]
 end
 

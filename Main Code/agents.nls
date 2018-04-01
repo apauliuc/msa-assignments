@@ -1,4 +1,4 @@
-__includes [ "masters.nls" "workers.nls" "messaging.nls" "masters-messaging.nls" "workers-messaging.nls" "graph_helpers.nls" "passengers.nls" "helpers.nls"]
+__includes [ "masters.nls" "workers.nls" "messaging.nls" "masters-messaging.nls" "workers-messaging.nls" "graph_helpers.nls" "passengers.nls" "helpers.nls" "scavengers.nls"]
 extensions [table]
 buses-own [
   ; Static, read-only variables. These values never change. You can read them, but you cannot change them.
@@ -35,6 +35,7 @@ buses-own [
 
   is_master                   ; Flag indicating if the bus is master and has extra rights. (e.g. adding new buses.)
   is_worker                   ; Flag indicating if the bus is only worker. (e.g. adding new buses.)
+  is_scavenger                ; Flag indicating if the bus is a scavenger and behaves differently.
   my_master_id                ; The ID of the master of worker's route.
 
   outbox                      ; Table (key value pairs) of tables in the form (message_type: recipient_id: [send_tick expected_receive_tick])
@@ -50,6 +51,8 @@ buses-own [
   worker_requests             ; Table of requests for new workes made by the master busses in the form (tick: [ [requester_id bus_type] ])
   worker_inits                ; Table of initialised worker buses in the form (tick: [ [initialised_id bus_type] ])
   worker_arrived              ; Table of workers arrived on route to help, in the form (tick: [bus_id])
+  votes                       ; Table of votes in the form (tick:[ [bus_id true/false bus_type] ])
+  voting_interval             ; Variable representing how often masters vote for adding a new scavenger
 
   ; Only available to worker buses
   worker_init_replies         ; Table of replies from the master. Similar to help_requests (tick:[sender_id message_body])
@@ -86,6 +89,7 @@ to init-buses
     set is_master false
     set is_worker true
   ]
+  set is_scavenger false ; all scavengers are first initialised as workers, and later transformed into scavengers
 
   ; Create table for storing messages sent
   set last_read -1
@@ -98,6 +102,7 @@ to init-buses
   table:put outbox "SOS_REPLY" table:make
   table:put outbox "HELP_REQUEST" table:make
   table:put outbox "HELP_ARRIVED" table:make
+  table:put outbox "VOTE" table:make
 
 
   if is_master [
@@ -115,12 +120,17 @@ to execute-actions
 
   if is_master [
     master-process-inbox
+    master-execute-voting
     master-execute-actions
   ]
   if is_worker [
     worker-process-inbox
     worker-execute-actions
   ]
+  if is_scavenger [
+    scavenger-execute-actions
+  ]
+  
 end
 
 ; Setup the bus route to be the forward pass or the backward pass.

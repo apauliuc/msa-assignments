@@ -13,7 +13,8 @@ to send [recipient_id message_type message]
   if message_type = "MASTER_INIT_REPLY" [ set wait_time 1 ]
   if message_type = "SOS" [ set wait_time 2 ]
   if message_type = "SOS_REPLY" [ set wait_time 1 ]
-
+  if message_type = "VOTE" [ set wait_time 0 ]
+  
   let outbox_group (table:get outbox message_type)
   let current_outbox_group_mess table:make
   if table:has-key? outbox_group ticks [

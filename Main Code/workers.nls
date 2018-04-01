@@ -38,11 +38,19 @@ to worker-execute-actions
     [
       if ticks = wait_tick
       [
-        set route_id read-from-string item 1 (item 0 (table:get worker_init_replies ticks)) ; work_init_replies from current ticks, because just now I received the reply
-        setup-bus-route false
-        set on_route false
-        set my_master_id item 0 (item 0 (table:get worker_init_replies ticks))
-        set path_to_start_route []
+        ifelse table:has-key? worker_init_replies ticks [
+           set route_id read-from-string item 1 (item 0 (table:get worker_init_replies ticks)) ; work_init_replies from current ticks, because just now I received the reply
+           setup-bus-route false
+           set on_route false
+           set my_master_id item 0 (item 0 (table:get worker_init_replies ticks))
+           set path_to_start_route []
+        ]
+        [
+          ; I havent received any replies, so I must be a scavenger.
+          format-log 1 "Morphing into a scavenger."
+          set is_worker false
+          set is_scavenger true
+        ]
       ]
     ]
     [
