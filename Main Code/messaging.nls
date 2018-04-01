@@ -11,11 +11,17 @@ to send [recipient_id message_type message]
   if message_type = "WORKER_INIT_REPLY" [ set wait_time 1 ]
   if message_type = "MASTER_INIT" [ set wait_time 1 ]
   if message_type = "MASTER_INIT_REPLY" [ set wait_time 1 ]
-  if message_type = "SOS" [ set wait_time 1 ]
+  if message_type = "SOS" [ set wait_time 2 ]
   if message_type = "SOS_REPLY" [ set wait_time 1 ]
 
   let outbox_group (table:get outbox message_type)
-  table:put outbox_group recipient_id (list ticks (ticks + wait_time))
+  let current_outbox_group_mess table:make
+  if table:has-key? outbox_group ticks [
+    set current_outbox_group_mess table:get outbox_group ticks
+  ]
+
+  table:put current_outbox_group_mess recipient_id (ticks + wait_time)
+  table:put outbox_group ticks current_outbox_group_mess
   table:put outbox message_type outbox_group
 
   send-message recipient_id (word message_type " " message)
@@ -59,13 +65,19 @@ end
 to process-outbox
   foreach table:keys outbox [
     let message_type ?
+    let wait_time 0
+    if message_type = "WORKER_INIT" [ set wait_time 2 ]
+    if message_type = "WORKER_INIT_REPLY" [ set wait_time 1 ]
+    if message_type = "MASTER_INIT" [ set wait_time 1 ]
+    if message_type = "MASTER_INIT_REPLY" [ set wait_time 1 ]
+    if message_type = "SOS" [ set wait_time 2 ]
+    if message_type = "SOS_REPLY" [ set wait_time 1 ]
+
     let outbox_group (table:get outbox message_type)
     foreach table:keys outbox_group [
-      let recipient_id ?
-      let sent_message_meta (table:get outbox_group recipient_id)
-      let expected_receive_tick (item 1 sent_message_meta)
-      if expected_receive_tick < ticks [
-        table:remove outbox_group recipient_id
+      let timestamp ?
+      if ticks > (timestamp + wait_time) [
+        table:remove outbox_group timestamp
       ]
     ]
     table:put outbox message_type outbox_group

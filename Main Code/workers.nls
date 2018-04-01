@@ -21,11 +21,17 @@ to worker-execute-actions
   if state = "WORKER_INIT" [
     ; Broadcast init to masters.
     ; move to init.
+
     let sent_inits table:get outbox "WORKER_INIT"
     let has_init_sent (length (table:keys sent_inits)) != 0
     let wait_tick 0
     if has_init_sent [
-      set wait_tick (item 1 (table:get sent_inits 24)) ; hardcoded '24' because we know that all the lists will be the same, and 24 will be a key
+        let ticcks table:keys sent_inits
+        let first_tick item 0 ticcks
+        let recipient_expected (table:get sent_inits first_tick)
+        let recipients (table:keys recipient_expected)
+        let first_recipient (item 0 recipients)
+        set wait_tick (table:get recipient_expected first_recipient)
     ]
 
     ifelse has_init_sent
@@ -40,7 +46,6 @@ to worker-execute-actions
       ]
     ]
     [
-        format-log 2 "Broadcasting to masters."
         broadcast-to-masters "WORKER_INIT" (type-from-capacity bus_capacity)
     ]
   ]

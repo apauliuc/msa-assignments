@@ -115,7 +115,8 @@ end
 ;   {table} outbox
 to process-sos-reply [message_type message_body sender_id]
     let outbox_group table:get outbox "SOS"
-    let expected_senders table:keys outbox_group
+
+    let expected_senders table:keys (table:get outbox_group (ticks - 2))
     let current_sos_replies []
     if (table:has-key? sos_replies ticks) [
         set current_sos_replies table:get sos_replies ticks
@@ -123,18 +124,14 @@ to process-sos-reply [message_type message_body sender_id]
 
     foreach expected_senders [
         let expected_sender ?
-        let expected_message table:get outbox_group expected_sender
         if sender_id = expected_sender [
             ; handle response from bus helper.
             let sender_bus_capacity read-from-string message_body
-            set current_sos_replies lput (list (item 0 sender_bus_capacity) (item 1 sender_bus_capacity)) current_sos_replies
-            ; remove sent message from bus
-            table:remove outbox_group expected_sender
+            set current_sos_replies (lput sender_bus_capacity current_sos_replies)
         ]
     ]
 
     table:put sos_replies ticks current_sos_replies
-    table:put outbox message_type outbox_group
 end
 
 ; Processes the HELP_ARRIVED message.
