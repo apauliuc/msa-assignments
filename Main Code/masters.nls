@@ -162,12 +162,12 @@ to master-social-choice
   
   ifelse positive_votes > negative_votes 
   [
-    format-log 1 (word "    ADDING -> Positive votes:" positive_votes ". Negative votes:" negative_votes ".")
+    format-log 0 (word "    ADDING -> Positive votes:" positive_votes ". Negative votes:" negative_votes ".")
     add-bus 1    ; for now, we only add one type of buses.
      
   ]
   [
-    format-log 1 (word "NOT ADDING -> Positive votes:" positive_votes ". Negative votes:" negative_votes ".")  
+    format-log 0 (word "NOT ADDING -> Positive votes:" positive_votes ". Negative votes:" negative_votes ".")  
   ]
 end
 

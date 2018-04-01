@@ -22,7 +22,11 @@ end
 ;   {boolean} true, if the passenger can be transported by the bus for at least one station, false otherwise.
 to-report can-transport-one-station [passenger_position passenger_destination route ]
   ifelse length route > 1 and passenger_position != passenger_destination  [
-    let next-station item 0 (get-shortest-path bus_routes_graph passenger_position passenger_destination)
+    let graph-to-be-used bus_routes_graph
+    if is_scavenger [
+      set graph-to-be-used graph
+    ]
+    let next-station item 0 (get-shortest-path graph-to-be-used passenger_position passenger_destination)
     let index 1
     while [index < (length route)]
     [
@@ -36,4 +40,14 @@ to-report can-transport-one-station [passenger_position passenger_destination ro
   [
     report false
   ]
+end
+
+to-report count-passengers-in-stations
+  let pass 0
+  foreach (n-values 24 [?])
+  [
+    let station ?
+    set pass (pass + (length (get-passengers-at-stop station)))
+  ]
+  report pass
 end

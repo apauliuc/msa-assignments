@@ -58,6 +58,10 @@ buses-own [
   worker_init_replies         ; Table of replies from the master. Similar to help_requests (tick:[sender_id message_body])
   help_requests               ; Table of received help requests in the form (tick:[sender_id message_body])
   help_request_tick           ; Variable representing
+  
+  ; Only available to scavenger buses
+  next_station                ; Variable representing the short term destination of the scavenger
+  
 ]
 
 globals [graph]

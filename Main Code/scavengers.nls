@@ -1,4 +1,81 @@
-to scavenger-execute-actions
-  ; TODO: DO SCAVENGER WORK
-  format-log 0 "DO NOTHING!! YOOOHOOO!!"
+to scavenger-execute-actions  
+  if at-stop 
+  [
+    let passengers_at_current_stop get-passengers-at-stop current_stop
+    set next_station get-next-stop-by-majory-vote (sentence passengers_at_current_stop bus_passengers) current_stop
+    
+    set bus_route (list current_stop next_station) ; this variable will be used by drop-off and pick-up
+    drop-off
+    pick-up
+  ]
+  
+  ifelse (bus_count_passengers + count-passengers-in-stations) = 0 
+  [
+    ; no reason to move.. just stay..
+  ]
+  [
+    travel-to next_station
+  ]
+end
+
+  
+; This function returns the next immediate stop by majority vote. taking into consideration the list of passengers.
+; Note: "next immediate stop" is not the same as the destinations of the passengers.
+to-report get-next-stop-by-majory-vote [ passenger_list bus_stop ]
+   ifelse length passenger_list = 0 
+   [
+     ; get random station, adiacent with the current bus_stop
+     report one-of (item bus_stop graph)
+   ]
+   [
+     ; get next station
+     let counter table:make
+     foreach passenger_list [
+       let passenger ?
+       if (item 1 passenger) != bus_stop ; passengers that leave the bus at current stationa are not counted
+       [
+         let next-station-for-passenger (item 0 (get-shortest-path graph bus_stop (item 1 passenger)))
+         add-to-counter counter next-station-for-passenger
+       ]
+     ]
+     
+     ifelse (length table:keys counter) = 0 
+     [ 
+       ; if the passenger_list was not empty, but every passenger is leaving the bus at current stop.
+       report one-of (item bus_stop graph)
+     ] 
+     [
+       report get-most-popular counter
+     ]
+   ]
+end
+
+
+to add-to-counter [ counter key ]
+  
+  if not (table:has-key? counter key) [
+    table:put counter key 0
+  ]
+  
+  let value table:get counter key
+  set value (value + 1)
+  table:put counter key value
+end
+
+to-report get-most-popular [ counter ]
+  let maximum-occurences 0
+  let most-popular -1
+  
+  foreach (table:keys counter) 
+  [
+    let key ?  
+    let occurences table:get counter key
+    if occurences > maximum-occurences 
+    [
+      set maximum-occurences occurences
+      set most-popular key
+    ]
+  ]
+  
+  report most-popular
 end

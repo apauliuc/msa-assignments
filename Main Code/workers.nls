@@ -12,6 +12,9 @@ to worker-init
   ; Initialise route id to fake value.
   set route_id -1
   set help_request_tick -1
+  
+  ;--------SCAVENGER VARIABLES--------
+  set next_station -1
 end
 
 ; Exectue block for worker buses.
@@ -47,7 +50,7 @@ to worker-execute-actions
         ]
         [
           ; I havent received any replies, so I must be a scavenger.
-          format-log 1 "Morphing into a scavenger."
+          format-log 0 "Morphing into a scavenger."
           set is_worker false
           set is_scavenger true
         ]
