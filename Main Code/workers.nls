@@ -77,7 +77,7 @@ to worker-execute-actions
   ]
 
   if state = "BUSINESS_AS_USUAL" [
-    ifelse has-passengers
+    if has-passengers
     [
       if current_stop = br_stop
       [
